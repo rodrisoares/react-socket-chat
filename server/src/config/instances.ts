@@ -11,6 +11,7 @@ import type {
   SocketData,
 } from '@react-chat/shared';
 import { env } from './env.js';
+import { httpLogger } from './logger.js';
 
 export const app = express();
 
@@ -23,6 +24,12 @@ export const app = express();
  * silenciosamente cada <img> de anexo.
  */
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+/**
+ * Antes das rotas, e antes do CORS: assim até a requisição recusada na porta de
+ * entrada deixa rastro, com o mesmo id que volta no cabeçalho da resposta.
+ */
+app.use(httpLogger);
 
 /**
  * `credentials: true` porque o refresh token viaja num cookie httpOnly: sem

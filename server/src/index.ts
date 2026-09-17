@@ -5,6 +5,30 @@ import { logger } from './config/logger.js';
 import { prisma } from './config/prisma.js';
 import * as users from './repositories/userRepository.js';
 import * as sessions from './repositories/sessionRepository.js';
+import { sweepOrphanUploads } from './services/maintenanceService.js';
+
+/** De quanto em quanto tempo a faxina roda depois da primeira. */
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Sessão expirada ou encerrada só ocupa espaço, e guardar o hash de um token
+ * morto não protege ninguém. O mesmo vale para o anexo cujo dono já não existe.
+ */
+async function cleanup(reason: 'boot' | 'diário'): Promise<void> {
+  try {
+    const { count } = await sessions.purgeDead();
+    if (count > 0) logger.info({ count, reason }, 'sessões antigas removidas');
+  } catch (error) {
+    logger.error({ error, reason }, 'falha ao limpar sessões');
+  }
+
+  try {
+    const removed = await sweepOrphanUploads();
+    if (removed > 0) logger.info({ removed, reason }, 'anexos órfãos removidos');
+  } catch (error) {
+    logger.error({ error, reason }, 'falha ao varrer os anexos');
+  }
+}
 
 /**
  * A presenca vive no banco e so e escrita no connect/disconnect do socket.
@@ -18,14 +42,19 @@ async function start() {
     logger.error({ error }, 'boot: falha ao zerar a presença');
   }
 
-  try {
-    // Sessao expirada ou encerrada so ocupa espaco, e guardar o hash de um
-    // token morto nao protege ninguem.
-    const { count } = await sessions.purgeDead();
-    if (count > 0) logger.info({ count }, 'boot: sessões antigas removidas');
-  } catch (error) {
-    logger.error({ error }, 'boot: falha ao limpar sessões');
-  }
+  await cleanup('boot');
+
+  /*
+   * E de novo todo dia.
+   *
+   * A faxina só rodava na subida, o que só limpa alguma coisa em quem
+   * reinicia o servidor com frequência: um processo que fica semanas no ar
+   * acumulava sessão morta e anexo órfão o tempo todo, sem nunca passar por
+   * aqui. O `unref` é o que impede este timer sozinho de segurar o Node vivo
+   * no desligamento.
+   */
+  const daily = setInterval(() => void cleanup('diário'), CLEANUP_INTERVAL_MS);
+  daily.unref();
 
   server.listen(env.port, () => {
     logger.info({ port: env.port }, 'servidor no ar');

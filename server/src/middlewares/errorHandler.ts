@@ -9,7 +9,7 @@ export const notFoundHandler: RequestHandler = (req, res) => {
   res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.originalUrl}` });
 };
 
-export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: err.message,
@@ -40,7 +40,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  // Erro nao previsto: registra completo, devolve generico.
-  logger.error({ err }, 'erro não tratado');
+  /*
+   * Erro nao previsto: registra completo, devolve generico.
+   *
+   * Pelo `req.log` quando ele existe — e o logger que o pino-http prende a esta
+   * requisicao, entao a linha sai com o mesmo id do resto dela. Sem ele, a
+   * pilha ficava solta no log, sem nada dizendo qual requisicao a produziu.
+   */
+  (req.log ?? logger).error({ err }, 'erro não tratado');
   res.status(500).json({ error: 'Erro interno do servidor' });
 };
