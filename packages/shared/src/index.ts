@@ -12,6 +12,7 @@
  */
 export * from './api.js';
 export * from './events.js';
+export * from './http.js';
 export * from './limits.js';
 export * from './mentions.js';
 export * from './password.js';

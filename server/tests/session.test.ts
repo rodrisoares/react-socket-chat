@@ -5,7 +5,8 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/config/prisma.js';
 import { keepsPresence } from '../src/socket/presence.js';
 import * as sessions from '../src/repositories/sessionRepository.js';
-import { body, createUser, resetDb } from './helpers.js';
+import { APP_REQUEST_HEADER, APP_REQUEST_VALUE } from '@react-chat/shared';
+import { body, createUser, resetDb, sessionTokenFor, tokenFor } from './helpers.js';
 
 interface SessionBody {
   token: string;
@@ -40,8 +41,17 @@ async function login(email: string, password = 'segredo123', agent = 'Firefox/1.
   return { ...body<SessionBody>(response), cookie: refreshCookie(response) };
 }
 
+/**
+ * Renovar e sair exigem a marca de "veio do app" — e o que impede um site
+ * terceiro de disparar as duas rotas que agem a partir do cookie. O cliente a
+ * manda em toda requisicao; aqui ela vai a mao, como o navegador faria.
+ */
+function fromApp(test: request.Test) {
+  return test.set(APP_REQUEST_HEADER, APP_REQUEST_VALUE);
+}
+
 function renew(cookie: string) {
-  return request(app).post('/api/auth/refresh').set('Cookie', cookie);
+  return fromApp(request(app).post('/api/auth/refresh')).set('Cookie', cookie);
 }
 
 /** Limpa as sessoes junto: o resetDb do helper nao conhece a tabela nova. */
@@ -113,15 +123,14 @@ describe('sessao de longa duracao', () => {
   });
 
   it('sem cookie nenhum nao ha o que renovar', async () => {
-    await request(app).post('/api/auth/refresh').expect(401);
+    await fromApp(request(app).post('/api/auth/refresh')).expect(401);
   });
 
   it('sair encerra a sessao no servidor e apaga o cookie', async () => {
     const luiz = await createUser('Luiz', 'luiz@email.com');
     const entrada = await login(luiz.email);
 
-    const saida = await request(app)
-      .post('/api/auth/logout')
+    const saida = await fromApp(request(app).post('/api/auth/logout'))
       .set('Cookie', entrada.cookie)
       .expect(200);
 
@@ -252,5 +261,108 @@ describe('presenca com mais de uma conexao', () => {
     expect(keepsPresence(['aba-a'], 'aba-a')).toBe(false);
     // No disconnect ele ja saiu: a sala chega vazia.
     expect(keepsPresence([], 'aba-a')).toBe(false);
+  });
+});
+
+/**
+ * O buraco que o access token sem estado deixava: encerrar uma sessao derrubava
+ * o socket na hora, e o aparelho continuava lendo e escrevendo pelo HTTP ate o
+ * token dela vencer — quinze minutos depois de a pessoa clicar em "encerrar".
+ */
+describe('sessao encerrada alcanca o HTTP', () => {
+  beforeEach(reset);
+
+  it('o token de uma sessao encerrada deixa de valer na hora', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const aparelho = await sessionTokenFor(luiz.id);
+    const dele = `Bearer ${aparelho.token}`;
+
+    // Antes de encerrar, o token funciona.
+    await request(app).get('/api/me').set('Authorization', dele).expect(200);
+
+    await request(app)
+      .delete(`/api/me/sessions/${aparelho.sessionId}`)
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .expect(200);
+
+    // O token continua assinado e dentro da validade — e nao vale mais nada.
+    const recusa = await request(app).get('/api/me').set('Authorization', dele).expect(401);
+    expect(body<{ error: string }>(recusa).error).toContain('encerrada');
+  });
+
+  it('sair da conta encerra o acesso HTTP daquela aba', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const entrada = await login(luiz.email);
+    const dele = `Bearer ${entrada.token}`;
+
+    await request(app).get('/api/me').set('Authorization', dele).expect(200);
+
+    await fromApp(request(app).post('/api/auth/logout'))
+      .set('Cookie', entrada.cookie)
+      .expect(200);
+
+    await request(app).get('/api/me').set('Authorization', dele).expect(401);
+  });
+
+  /** A troca de senha derruba os outros dispositivos — inclusive o HTTP deles. */
+  it('trocar a senha encerra o acesso dos outros aparelhos', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const antigo = await sessionTokenFor(luiz.id);
+    const atual = await sessionTokenFor(luiz.id);
+
+    await request(app)
+      .patch('/api/me')
+      .set('Authorization', `Bearer ${atual.token}`)
+      .send({ currentPassword: luiz.password, newPassword: 'outraSenha9' })
+      .expect(200);
+
+    await request(app)
+      .get('/api/me')
+      .set('Authorization', `Bearer ${antigo.token}`)
+      .expect(401);
+
+    // A que pediu a troca continua de pe: encerra-la devolveria quem trocou a
+    // senha para a tela de login.
+    await request(app)
+      .get('/api/me')
+      .set('Authorization', `Bearer ${atual.token}`)
+      .expect(200);
+  });
+});
+
+/**
+ * Renovar e sair sao as duas rotas que agem a partir do cookie, e as unicas sem
+ * header de autenticacao. Com `sameSite=none` — obrigatorio quando a tela e a
+ * API vivem em dominios diferentes — um site terceiro conseguiria dispara-las:
+ * nao leria a resposta, mas a rotacao do refresh ja derrubaria a sessao da
+ * vitima.
+ */
+describe('as rotas do cookie exigem a marca do app', () => {
+  beforeEach(reset);
+
+  it('recusa a renovacao sem o cabecalho', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const entrada = await login(luiz.email);
+
+    await request(app)
+      .post('/api/auth/refresh')
+      .set('Cookie', entrada.cookie)
+      .expect(403);
+
+    // E com ele, a mesma requisicao passa: o que muda e so a marca.
+    await renew(entrada.cookie).expect(200);
+  });
+
+  it('recusa a saida sem o cabecalho', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const entrada = await login(luiz.email);
+
+    await request(app)
+      .post('/api/auth/logout')
+      .set('Cookie', entrada.cookie)
+      .expect(403);
+
+    // A sessao continua viva: a recusa nao pode ter efeito nenhum.
+    await renew(entrada.cookie).expect(200);
   });
 });

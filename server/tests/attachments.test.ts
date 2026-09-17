@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { readdirSync } from 'node:fs';
+import sharp from 'sharp';
 
 import { app } from '../src/app.js';
 import { signedAttachmentUrl } from '../src/config/attachments.js';
@@ -9,6 +10,7 @@ import {
   body,
   createDirectChat,
   createUser,
+  PDF_MIN,
   PNG_1PX,
   resetDb,
   tokenFor,
@@ -334,5 +336,179 @@ describe('anexo conferido pelo conteudo', () => {
     }).expect(403);
 
     await vi.waitFor(() => expect(uploadsNow()).toEqual(antes));
+  });
+});
+
+/**
+ * O EXIF que sobrevivia no original.
+ *
+ * A miniatura ja nascia limpa — o sharp nao copia metadado para a saida —, e o
+ * arquivo servido era o que subiu, byte por byte: com a coordenada de GPS que a
+ * camera do celular grava por padrao. Mandar uma foto num grupo entregava,
+ * junto, o lugar onde ela foi tirada.
+ */
+describe('imagem reescrita no upload', () => {
+  beforeEach(resetDb);
+
+  /** Um JPEG com metadado de verdade dentro. */
+  async function comExif(): Promise<Buffer> {
+    return sharp({
+      create: { width: 60, height: 40, channels: 3, background: '#336699' },
+    })
+      .jpeg()
+      .withExif({ IFD0: { Copyright: 'camera-secreta', Artist: 'dono' } })
+      .toBuffer();
+  }
+
+  /** O arquivo como o servidor o entrega, em bytes. */
+  async function baixar(url: string): Promise<Buffer> {
+    const resposta = await request(app).get(url).responseType('blob').expect(200);
+    return resposta.body as Buffer;
+  }
+
+  it('remove o metadado da imagem servida', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+    const chatId = await createDirectChat(luiz.id, joao.id);
+
+    const original = await comExif();
+    // Confere a premissa: o arquivo enviado tinha metadado mesmo.
+    expect((await sharp(original).metadata()).exif).toBeDefined();
+
+    const enviada = await sendFile(chatId, luiz.id, original, {
+      filename: 'foto.jpg',
+      contentType: 'image/jpeg',
+    }).expect(200);
+
+    const servida = await baixar(body<SentMessage>(enviada).attachment?.url ?? '');
+    expect((await sharp(servida).metadata()).exif).toBeUndefined();
+  });
+
+  /**
+   * A orientacao passa a estar nos pixels, e nao numa etiqueta — e por isso as
+   * dimensoes gravadas sao as do que se ve.
+   */
+  it('aplica a orientacao do EXIF e mede o resultado', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+    const chatId = await createDirectChat(luiz.id, joao.id);
+
+    // Orientation 6 = girar um quarto de volta: 60x40 deitado vira 40x60 em pe.
+    // `withMetadata`, e nao `withExif`: o segundo grava a etiqueta e o sharp a
+    // sobrescreve com 1 na saida, entao o arquivo saia sem a rotacao pedida.
+    const deitada = await sharp({
+      create: { width: 60, height: 40, channels: 3, background: '#aa3344' },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+
+    expect((await sharp(deitada).metadata()).orientation).toBe(6);
+
+    const enviada = await sendFile(chatId, luiz.id, deitada, {
+      filename: 'emPe.jpg',
+      contentType: 'image/jpeg',
+    }).expect(200);
+
+    const mensagem = body<SentMessage & { attachment: { width: number; height: number } }>(
+      enviada,
+    );
+
+    expect(mensagem.attachment.width).toBe(40);
+    expect(mensagem.attachment.height).toBe(60);
+
+    const servida = await baixar(mensagem.attachment.url);
+    const meta = await sharp(servida).metadata();
+    expect([meta.width, meta.height]).toEqual([40, 60]);
+  });
+
+  /**
+   * GIF animado continua animado.
+   *
+   * Reescrever a imagem sem avisar o sharp de que ela tem quadros achata tudo
+   * no primeiro — o GIF que a pessoa mandou chegaria parado do outro lado. O
+   * `animated: true` do `normalizeImage` e o que impede isso, e e exatamente a
+   * diferenca que este teste mede.
+   */
+  it('preserva a animacao de um GIF', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+    const chatId = await createDirectChat(luiz.id, joao.id);
+
+    // Tres quadros de cores diferentes: com quadros iguais o codificador os
+    // funde, e o fixture nasceria com uma pagina so.
+    const quadros = await Promise.all(
+      ['#ff0000', '#00ff00', '#0000ff'].map((cor) =>
+        sharp({ create: { width: 20, height: 20, channels: 4, background: cor } })
+          .png()
+          .toBuffer(),
+      ),
+    );
+
+    const animado = await sharp(quadros, { join: { animated: true } })
+      .gif({ loop: 0 })
+      .toBuffer();
+
+    const enviado = await sendFile(chatId, luiz.id, animado, {
+      filename: 'animado.gif',
+      contentType: 'image/gif',
+    }).expect(200);
+
+    const servido = await baixar(body<SentMessage>(enviado).attachment?.url ?? '');
+    const meta = await sharp(servido, { animated: true }).metadata();
+
+    expect(meta.format).toBe('gif');
+    expect(meta.pages).toBe(3);
+  });
+});
+
+/**
+ * A foto de perfil enviada direto pela API.
+ *
+ * A tela recorta antes de mandar, mas o recorte e do cliente: um POST em
+ * /api/me/avatar subia os 10 MB inteiros, e eles viravam a imagem que carrega
+ * em cada card da lista e em cada balao.
+ */
+describe('foto de perfil reduzida', () => {
+  beforeEach(resetDb);
+
+  it('reduz a imagem e a serve em webp', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+
+    const grande = await sharp({
+      create: { width: 1400, height: 1100, channels: 3, background: '#553377' },
+    })
+      .png()
+      .toBuffer();
+
+    const resposta = await request(app)
+      .post('/api/me/avatar')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .attach('image', grande, { filename: 'eu.png', contentType: 'image/png' })
+      .expect(200);
+
+    const { url } = body<{ url: string }>(resposta);
+    expect(url).toMatch(/\.webp$/);
+
+    const servida = await request(app)
+      .get(signedAttachmentUrl(url))
+      .responseType('blob')
+      .expect(200);
+
+    const meta = await sharp(servida.body as Buffer).metadata();
+    expect(meta.format).toBe('webp');
+    // Quadrada e dentro do teto: o `cover` corta o excedente.
+    expect(meta.width).toBe(512);
+    expect(meta.height).toBe(512);
+  });
+
+  it('recusa o que nao e imagem', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+
+    await request(app)
+      .post('/api/me/avatar')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .attach('image', PDF_MIN, { filename: 'doc.pdf', contentType: 'application/pdf' })
+      .expect(400);
   });
 });

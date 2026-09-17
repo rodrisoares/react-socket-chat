@@ -4,6 +4,7 @@ import type { RegisterInput } from '@react-chat/shared/schemas';
 
 import { env } from '../config/env.js';
 import { signToken } from '../config/jwt.js';
+import { revokeSession } from '../config/revokedSessions.js';
 import { AppError } from '../errors/AppError.js';
 import * as chats from '../repositories/chatRepository.js';
 import { sessionUser } from '../repositories/mappers.js';
@@ -91,8 +92,14 @@ export async function login(
 ): Promise<SignedIn> {
   const found = await users.findByEmailWithHash(email);
 
-  // Mensagem unica para nao revelar se o email existe.
-  if (!found || !(await bcrypt.compare(password, found.passwordHash))) {
+  // Mensagem unica para nao revelar se o email existe. Conta excluida entra na
+  // mesma resposta de propósito: dizer "esta conta foi excluída" confirmaria a
+  // quem perguntou que ela existiu — e o e-mail dela já nem é mais este.
+  if (
+    !found ||
+    found.deletedAt !== null ||
+    !(await bcrypt.compare(password, found.passwordHash))
+  ) {
     throw new AppError(401, 'E-mail ou senha incorretos');
   }
 
@@ -137,6 +144,11 @@ export async function refresh(refreshToken: string) {
 export async function logout(refreshToken: string): Promise<void> {
   const session = await sessions.revokeByToken(refreshToken);
   if (!session) return;
+
+  // O access token desta sessão continua assinado e válido por até 15 min: sem
+  // esta linha, sair da conta deixava a aba capaz de ler e escrever por esse
+  // tempo — pelo HTTP, com o socket já derrubado.
+  revokeSession(session.id);
 
   await events.disconnectSessions(session.userId, (sessionId) => sessionId === session.id);
 }

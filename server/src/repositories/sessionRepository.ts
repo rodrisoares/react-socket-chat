@@ -117,12 +117,53 @@ export async function revokeByToken(token: string) {
   return found;
 }
 
-/** Encerra todas as outras — a opcao "sair dos demais dispositivos". */
-export function revokeOthers(userId: number, keepId: string) {
-  return prisma.session.updateMany({
+/**
+ * Encerra todas as outras — a opcao "sair dos demais dispositivos", e tambem
+ * o efeito da troca de senha.
+ *
+ * Devolve quais foram, e nao so quantas: quem chama precisa dos ids para
+ * derrubar o socket de cada uma e para por o `sid` na lista de sessoes
+ * encerradas, que e o que alcanca o access token ainda vivo delas.
+ */
+export async function revokeOthers(
+  userId: number,
+  keepId: string,
+): Promise<{ count: number; ids: string[] }> {
+  const doomed = await prisma.session.findMany({
     where: { userId, revokedAt: null, id: { not: keepId } },
+    select: { id: true },
+  });
+
+  const ids = doomed.map((session) => session.id);
+  if (ids.length === 0) return { count: 0, ids };
+
+  await prisma.session.updateMany({
+    where: { id: { in: ids } },
     data: { revokedAt: new Date() },
   });
+
+  return { count: ids.length, ids };
+}
+
+/**
+ * Encerra todas, sem exceção — a exclusão de conta. Devolve os ids pelo mesmo
+ * motivo do `revokeOthers`: alcançar o access token que ja foi assinado.
+ */
+export async function revokeAll(userId: number): Promise<{ count: number; ids: string[] }> {
+  const doomed = await prisma.session.findMany({
+    where: { userId, revokedAt: null },
+    select: { id: true },
+  });
+
+  const ids = doomed.map((session) => session.id);
+  if (ids.length === 0) return { count: 0, ids };
+
+  await prisma.session.updateMany({
+    where: { id: { in: ids } },
+    data: { revokedAt: new Date() },
+  });
+
+  return { count: ids.length, ids };
 }
 
 export function listActive(userId: number) {

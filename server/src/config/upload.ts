@@ -1,10 +1,10 @@
 import multer from 'multer';
 import type { RequestHandler, Response } from 'express';
 import { fileTypeFromFile } from 'file-type';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
-import { copyFile, open, rename, rm } from 'node:fs/promises';
+import { copyFile, open, readdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { extname } from 'node:path';
 import { UPLOAD_MAX_MB } from '@react-chat/shared';
@@ -112,13 +112,64 @@ export interface AttachmentMeta {
   thumbnailUrl?: string;
 }
 
+/** Formatos que podem carregar animacao: o sharp precisa ser avisado. */
+const ANIMATED_TYPES = new Set(['image/gif', 'image/webp']);
+
+/**
+ * Como cada formato e reescrito. Mantem o formato de origem de proposito:
+ * converter tudo para webp quebraria o GIF animado que a pessoa mandou e faria
+ * o arquivo baixado ter outra extensao do que ela escolheu.
+ */
+function encode(pipeline: Sharp, mime: string, animated: boolean): Sharp {
+  if (mime === 'image/png') return pipeline.png({ compressionLevel: 9 });
+  if (mime === 'image/gif') return pipeline.gif();
+  if (mime === 'image/webp') return pipeline.webp({ quality: 85, ...(animated ? { effort: 4 } : {}) });
+  return pipeline.jpeg({ quality: 88 });
+}
+
+/**
+ * Reescreve a imagem sem metadado, com a orientacao ja aplicada.
+ *
+ * O arquivo servido era o que subiu, byte por byte — com o EXIF inteiro
+ * dentro, inclusive a coordenada de GPS que a camera do celular grava por
+ * padrao. Mandar uma foto num grupo entregava, junto, o lugar onde ela foi
+ * tirada, e nada na tela dizia isso. A miniatura ja nascia limpa (o sharp nao
+ * copia metadado para a saida), o que tornava o vazamento ainda mais
+ * silencioso: o que aparecia na lista estava limpo, e o original, nao.
+ *
+ * Reescrever tambem resolve a orientacao de vez: em vez de a tela depender da
+ * etiqueta EXIF para saber que a foto esta de lado, os pixels ja vem na posicao
+ * certa. E o que permite medir o arquivo direto, sem a troca de largura e
+ * altura que a etiqueta obrigava.
+ *
+ * O preco e uma recodificacao por imagem enviada — perda pequena de qualidade
+ * no JPEG, e CPU no upload. O silencio no erro e de proposito: um arquivo que o
+ * sharp nao consegue reescrever continua sendo um anexo valido, e nesse caso o
+ * original segue como esta.
+ */
+async function normalizeImage(fileName: string, mime: string): Promise<void> {
+  const source = path.join(UPLOAD_DIR, fileName);
+  const temp = path.join(UPLOAD_DIR, `${fileName}.tmp`);
+  const animated = ANIMATED_TYPES.has(mime);
+
+  try {
+    // `rotate()` sem angulo aplica a etiqueta do EXIF. Fora do caminho animado:
+    // GIF nao tem EXIF, e girar quadro a quadro so gastaria CPU.
+    const pipeline = sharp(source, animated ? { animated: true } : {});
+    await encode(animated ? pipeline : pipeline.rotate(), mime, animated).toFile(temp);
+
+    await rename(temp, source);
+  } catch (error) {
+    logger.error({ error, fileName }, 'uploads: falha ao reescrever a imagem');
+    await rm(temp, { force: true }).catch(() => undefined);
+  }
+}
+
 /**
  * Mede a imagem e gera a miniatura.
  *
- * O `rotate()` aplica a orientacao do EXIF antes de reduzir: sem ele a foto
- * tirada em pe sai deitada na miniatura. E as dimensoes sao trocadas quando o
- * EXIF pede rotacao de um quarto de volta — o `metadata` devolve o tamanho do
- * arquivo, nao o do que se ve.
+ * Roda depois do `normalizeImage`, entao o que o `metadata` devolve ja e o
+ * tamanho do que se ve: a rotacao esta nos pixels, e nao numa etiqueta.
  *
  * Silencioso no erro de proposito: um arquivo que o sharp nao consegue abrir
  * ainda e um anexo valido — ele so perde a miniatura e o espaco reservado.
@@ -127,14 +178,12 @@ async function describeImage(fileName: string): Promise<AttachmentMeta> {
   const source = path.join(UPLOAD_DIR, fileName);
 
   try {
-    const meta = await sharp(source).metadata();
-    const quarterTurn = (meta.orientation ?? 1) >= 5;
-    const width = quarterTurn ? meta.height : meta.width;
-    const height = quarterTurn ? meta.width : meta.height;
+    const { width, height } = await sharp(source).metadata();
 
     const thumbName = thumbNameOf(fileName);
+    // Sem `animated`: a miniatura e o primeiro quadro, que e o que a lista e a
+    // galeria mostram com 80px de lado.
     await sharp(source)
-      .rotate()
       .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
       .webp({ quality: 72 })
       .toFile(path.join(UPLOAD_DIR, thumbName));
@@ -148,6 +197,48 @@ async function describeImage(fileName: string): Promise<AttachmentMeta> {
     logger.error({ error, fileName }, 'uploads: falha ao medir a imagem');
     return {};
   }
+}
+
+/** Lado maximo da foto de perfil. Acima disto e desperdicio de disco e banda. */
+export const AVATAR_SIZE = 512;
+
+/**
+ * Reduz a imagem ja conferida a uma foto de perfil, e devolve o nome novo.
+ *
+ * A tela recorta antes de enviar, mas o `accept` e o recorte sao do cliente: um
+ * POST direto em `/api/me/avatar` subia 10 MB e eles viravam a foto que carrega
+ * em cada card da lista, em cada balao e em cada painel de detalhes.
+ *
+ * Sai sempre em webp quadrado: e a foto de perfil, que a tela so mostra em
+ * circulo pequeno — manter o formato de origem aqui nao serve a ninguem, ao
+ * contrario do anexo, que a pessoa baixa de volta.
+ *
+ * O original sai do disco junto com a miniatura que o `verifyUpload` gerou para
+ * ele: nenhuma das duas tem uso depois desta reducao.
+ */
+export async function shrinkToAvatar(fileName: string): Promise<string> {
+  const base = path.basename(fileName, extname(fileName));
+  const name = `${base}.webp`;
+  const temp = path.join(UPLOAD_DIR, `${base}.avatar.tmp`);
+
+  try {
+    await sharp(path.join(UPLOAD_DIR, fileName))
+      .rotate()
+      .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toFile(temp);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => undefined);
+    logger.error({ error, fileName }, 'uploads: falha ao reduzir o avatar');
+    throw AppError.badRequest('Não foi possível processar esta imagem');
+  }
+
+  // Só depois de a versão reduzida existir: uma falha acima não pode deixar o
+  // usuário sem foto nenhuma.
+  await removeUpload(`/uploads/${fileName}`);
+  await rename(temp, path.join(UPLOAD_DIR, name));
+
+  return name;
 }
 
 /** Respostas cujo anexo virou mensagem: o arquivo delas fica no disco. */
@@ -196,6 +287,10 @@ export const verifyUpload: RequestHandler = (req, res, next) => {
       file.filename = name;
       file.path = target;
       file.mimetype = mime;
+
+      // Imagem é reescrita antes de qualquer outra coisa: o que for medido,
+      // reduzido e servido daqui em diante já é o arquivo limpo.
+      if (IMAGE_TYPES.has(mime)) await normalizeImage(name, mime);
 
       // O controller lê daqui para gravar na mensagem. `res.locals` porque o
       // dado é derivado desta requisição e morre com ela.
@@ -263,6 +358,48 @@ export async function removeUpload(attachmentUrl: string | null): Promise<void> 
     } catch (error) {
       logger.error({ error, target }, 'uploads: falha ao remover anexo');
     }
+  }
+}
+
+/** Um arquivo que esta em uploads/, com a idade dele. */
+export interface StoredUpload {
+  name: string;
+  modifiedAt: Date;
+}
+
+/** Tudo o que ha na pasta agora. So a varredura de orfaos usa. */
+export async function listUploadFiles(): Promise<StoredUpload[]> {
+  const entries = await readdir(UPLOAD_DIR, { withFileTypes: true });
+
+  const found = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile())
+      .map(async (entry) => {
+        try {
+          const info = await stat(path.join(UPLOAD_DIR, entry.name));
+          return { name: entry.name, modifiedAt: info.mtime };
+        } catch {
+          // Sumiu entre o listar e o medir: para a varredura, nao existe.
+          return null;
+        }
+      }),
+  );
+
+  return found.filter((file): file is StoredUpload => file !== null);
+}
+
+/**
+ * Apaga um arquivo pelo nome, e so ele.
+ *
+ * O `removeUpload` leva a miniatura junto, o que e o certo quando se apaga um
+ * anexo; aqui nao, porque a varredura ja percorre a miniatura por conta
+ * propria — e pedir a exclusao dela duas vezes so faz barulho no log.
+ */
+export async function removeUploadFile(name: string): Promise<void> {
+  try {
+    await rm(path.join(UPLOAD_DIR, path.basename(name)), { force: true });
+  } catch (error) {
+    logger.error({ error, name }, 'uploads: falha ao remover órfão');
   }
 }
 

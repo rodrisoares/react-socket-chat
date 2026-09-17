@@ -52,6 +52,36 @@ const appUrl = process.env['APP_URL']?.trim() || (corsOrigin[0] ?? 'http://local
  * configuração nova. A derivação é de mão única: quem obtiver a chave dos
  * anexos não chega ao segredo das sessões por ela.
  */
+/**
+ * Uma duração no formato que o jsonwebtoken aceita ('15m', '1h', '7d', ou um
+ * número de segundos), em milissegundos.
+ *
+ * Quem precisa disto é a lista de sessões encerradas: ela guarda cada `sid`
+ * revogado só até o access token daquela sessão vencer, e para saber quando
+ * isso acontece é preciso ler a mesma variável que assina o token.
+ *
+ * O que não casar com nenhum formato cai num dia. O erro seguro aqui é para
+ * cima: uma entrada guardada tempo demais gasta um punhado de bytes, e uma
+ * guardada de menos deixaria a sessão encerrada voltar a valer.
+ */
+const DURATION = /^(\d+)\s*(s|m|h|d)?$/i;
+const UNIT_MS: Record<string, number> = {
+  s: 1000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+
+function durationMs(value: string): number {
+  const found = DURATION.exec(value.trim());
+  const amount = Number(found?.[1]);
+
+  if (!found || !Number.isFinite(amount)) return UNIT_MS['d'] ?? 86_400_000;
+
+  // Sem unidade, o jsonwebtoken lê o número como segundos.
+  return amount * (UNIT_MS[(found[2] ?? 's').toLowerCase()] ?? 1000);
+}
+
 function attachmentSecret(): string {
   return (
     process.env['ATTACHMENT_SECRET'] ??
@@ -71,6 +101,11 @@ export const env = {
    * a pessoa logada e o refresh, logo abaixo.
    */
   jwtExpiresIn: required('JWT_EXPIRES_IN', '15m'),
+  /**
+   * O mesmo prazo em milissegundos, para quem precisa fazer conta com ele —
+   * hoje, a lista de sessões encerradas (ver config/revokedSessions.ts).
+   */
+  accessTokenMs: durationMs(required('JWT_EXPIRES_IN', '15m')),
   /**
    * Validade do refresh token, em dias. E ele que mantem a sessao viva sem
    * pedir a senha de novo; o JWT acima segue curto e sem estado.
@@ -108,6 +143,11 @@ export const env = {
   searchRateLimit: Number(required('SEARCH_RATE_LIMIT', '90')),
   /** Anexos enviados por janela de 15 min, por usuario. */
   uploadRateLimit: Number(required('UPLOAD_RATE_LIMIT', '40')),
+  /**
+   * Exportacoes de dados por hora, por usuario. Baixo de proposito: cada uma
+   * le o historico inteiro da pessoa e monta um JSON com ele.
+   */
+  exportRateLimit: Number(required('EXPORT_RATE_LIMIT', '5')),
   /** Custo do bcrypt. Reduzido nos testes para a suite nao arrastar. */
   bcryptRounds: Number(required('BCRYPT_ROUNDS', '10')),
   corsOrigin,

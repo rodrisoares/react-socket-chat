@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { APP_REQUEST_HEADER, APP_REQUEST_VALUE } from '@react-chat/shared';
 
 import { getToken, setSession } from 'config/auth';
 import { refreshSession } from './index';
@@ -58,7 +59,13 @@ describe('refreshSession', () => {
    * `withCredentials` que faz o navegador mandá-lo para a API de outra origem.
    * Sem ele a renovação sai sem credencial e todo 401 vira fim de sessão.
    */
-  it('vai sem corpo e com as credenciais ligadas', async () => {
+  /**
+   * O `withCredentials` e o que faz o cookie do refresh viajar para a API, que
+   * esta noutra origem. O cabecalho marca a requisicao como vinda do app: sem
+   * ele o servidor recusa com 403, porque esta e uma das duas rotas que um site
+   * terceiro conseguiria disparar (ver middlewares/csrf no servidor).
+   */
+  it('vai sem corpo, com as credenciais ligadas e com a marca do app', async () => {
     installLocks();
     post.mockResolvedValue({ data: renewed });
 
@@ -67,7 +74,10 @@ describe('refreshSession', () => {
     expect(post).toHaveBeenCalledWith(
       expect.stringContaining('/api/auth/refresh'),
       null,
-      { withCredentials: true },
+      {
+        withCredentials: true,
+        headers: { [APP_REQUEST_HEADER]: APP_REQUEST_VALUE },
+      },
     );
   });
 

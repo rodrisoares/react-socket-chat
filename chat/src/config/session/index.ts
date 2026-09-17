@@ -1,5 +1,9 @@
 import axios, { type AxiosError } from 'axios';
-import type { RefreshResponse } from '@react-chat/shared';
+import {
+  APP_REQUEST_HEADER,
+  APP_REQUEST_VALUE,
+  type RefreshResponse,
+} from '@react-chat/shared';
 
 import { clearSession, setSession } from 'config/auth';
 import { API_URL } from 'config/env';
@@ -31,7 +35,13 @@ async function requestRefresh(): Promise<RefreshResult> {
     const response = await axios.post<RefreshResponse>(
       `${API_URL}/api/auth/refresh`,
       null,
-      { withCredentials: true },
+      {
+        withCredentials: true,
+        // O cliente cru não passa pelo axios do app, então o cabeçalho que
+        // marca a requisição como nossa precisa ser posto à mão aqui — sem
+        // ele o servidor recusa a renovação com 403 (ver middlewares/csrf).
+        headers: { [APP_REQUEST_HEADER]: APP_REQUEST_VALUE },
+      },
     );
     setSession(response.data);
     return 'renewed';

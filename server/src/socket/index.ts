@@ -5,6 +5,7 @@ import * as chats from '../repositories/chatRepository.js';
 import { lastSeenOf } from '../repositories/mappers.js';
 import * as sessions from '../repositories/sessionRepository.js';
 import * as users from '../repositories/userRepository.js';
+import { allowance } from './allowance.js';
 import * as events from './events.js';
 import { keepsPresence } from './presence.js';
 
@@ -83,22 +84,42 @@ io.on('connection', (socket) => {
   const typingIn = new Set<string>();
 
   /**
+   * Freio do "digitando…", por conexao.
+   *
+   * Os dois eventos nao passavam por limite nenhum: o throttle existia so no
+   * cliente, e um cliente escrito a mao podia inundar a sala com milhares de
+   * avisos por segundo — cada um deles um broadcast para todo mundo na
+   * conversa. Limite do servidor nao e duplicata do cliente: um e conforto,
+   * o outro e a unica garantia.
+   *
+   * O teto e generoso de proposito. A tela renova o aviso a cada 2s (ver
+   * hooks/typing), entao o uso normal fica uma ordem de grandeza abaixo;
+   * quem esbarrar aqui esta fazendo outra coisa.
+   */
+  const typingAllowance = allowance();
+
+  /** Nome da sala, se esta conexao de fato participa dela. */
+  const roomOf = (payload: unknown): string | null => {
+    const chatId = (payload as { chatId?: unknown } | undefined)?.chatId;
+    if (typeof chatId !== 'string') return null;
+    return socket.rooms.has(`chat${chatId}`) ? chatId : null;
+  };
+
+  /**
    * "Digitando…" — evento efemero, nunca persistido.
    * Vai so para os outros participantes da sala.
    */
   socket.on('typing', (payload: unknown) => {
-    const chatId = (payload as { chatId?: unknown } | undefined)?.chatId;
-    if (typeof chatId !== 'string') return;
-    if (!socket.rooms.has(`chat${chatId}`)) return;
+    const chatId = roomOf(payload);
+    if (chatId === null || !typingAllowance.take()) return;
 
     typingIn.add(chatId);
     socket.to(`chat${chatId}`).emit('typing', { chatId, userId });
   });
 
   socket.on('stop-typing', (payload: unknown) => {
-    const chatId = (payload as { chatId?: unknown } | undefined)?.chatId;
-    if (typeof chatId !== 'string') return;
-    if (!socket.rooms.has(`chat${chatId}`)) return;
+    const chatId = roomOf(payload);
+    if (chatId === null || !typingAllowance.take()) return;
 
     typingIn.delete(chatId);
     socket.to(`chat${chatId}`).emit('stop-typing', { chatId, userId });

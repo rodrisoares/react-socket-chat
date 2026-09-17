@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { APP_REQUEST_HEADER, APP_REQUEST_VALUE } from '@react-chat/shared';
 
 import { getToken } from 'config/auth';
 import { API_URL } from 'config/env';
@@ -9,6 +10,15 @@ const instance = axios.create({
   // O cookie do refresh precisa viajar para a API, que está noutra origem. Só
   // o /api/auth o recebe: é o `path` com que o servidor o grava.
   withCredentials: true,
+  /*
+   * A marca de "esta requisição veio do app".
+   *
+   * Só `/api/auth/refresh` e `/api/auth/logout` a exigem — são as duas que
+   * agem a partir do cookie, e portanto as únicas expostas a um site terceiro.
+   * Vai em todas assim mesmo: um cabeçalho constante não custa nada, e deixá-lo
+   * só em duas chamadas é combinar que alguém vai lembrar disso na terceira.
+   */
+  headers: { [APP_REQUEST_HEADER]: APP_REQUEST_VALUE },
 });
 
 /**
