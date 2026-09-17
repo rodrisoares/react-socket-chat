@@ -1,7 +1,8 @@
 import type { RequestHandler } from 'express';
-import type { UpdateProfileInput } from '@react-chat/shared/schemas';
+import type { DeleteAccountInput, UpdateProfileInput } from '@react-chat/shared/schemas';
 
-import { keepUpload } from '../config/upload.js';
+import { clearRefreshCookie } from '../config/cookies.js';
+import { keepUpload, shrinkToAvatar } from '../config/upload.js';
 import { AppError } from '../errors/AppError.js';
 import { currentSessionId, currentUserId } from '../middlewares/requireAuth.js';
 import * as meService from '../services/meService.js';
@@ -34,7 +35,7 @@ export const updateProfile: RequestHandler = async (req, res) => {
  * daqui. Separar os dois permite trocar a foto e desistir antes de salvar,
  * como já acontece com os 16 avatares.
  */
-export const uploadAvatar: RequestHandler = (req, res) => {
+export const uploadAvatar: RequestHandler = async (req, res) => {
   const file = req.file;
   if (!file) throw AppError.badRequest('Envie uma imagem');
 
@@ -42,9 +43,41 @@ export const uploadAvatar: RequestHandler = (req, res) => {
     throw AppError.badRequest('A foto precisa ser uma imagem');
   }
 
+  // Reduzida antes de virar foto de perfil: o recorte da tela é do cliente, e
+  // um POST direto aqui subia os 10 MB inteiros para um avatar de 40px.
+  const name = await shrinkToAvatar(file.filename);
+
   // Sem isto o verifyUpload apaga o arquivo quando a resposta termina.
   keepUpload(res);
-  res.json({ url: `/uploads/${file.filename}` });
+  res.json({ url: `/uploads/${name}` });
+};
+
+/**
+ * Exclui a própria conta. Anonimiza em vez de apagar — o porquê está no
+ * serviço. Limpa o cookie junto: não há mais sessão para renovar.
+ */
+export const deleteAccount: RequestHandler = async (req, res) => {
+  const { password } = req.body as DeleteAccountInput;
+
+  await meService.deleteAccount(currentUserId(req), password);
+
+  clearRefreshCookie(res);
+  res.json({ ok: true });
+};
+
+/**
+ * Exportação de dados: baixa um JSON com o que o servidor guarda sobre você.
+ *
+ * Vai como anexo, e não como resposta para a tela ler: o arquivo é o produto —
+ * é o que a pessoa leva embora.
+ */
+export const exportData: RequestHandler = async (req, res) => {
+  const data = await meService.exportData(currentUserId(req));
+  const day = new Date().toISOString().slice(0, 10);
+
+  res.attachment(`react-chat-${day}.json`);
+  res.type('application/json');
+  res.send(JSON.stringify(data, null, 2));
 };
 
 export const listChats: RequestHandler = async (req, res) => {

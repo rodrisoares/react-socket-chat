@@ -1,0 +1,13 @@
+-- Conta excluida pelo proprio usuario.
+--
+-- A escolha aqui e anonimizar, e nao apagar a linha. O `senderId` de toda
+-- mensagem aponta para User com `onDelete: Cascade`: apagar a conta levaria
+-- junto tudo o que a pessoa escreveu, e cada grupo de que ela participou
+-- ficaria com metade do dialogo — perguntas sem resposta e respostas sem
+-- pergunta, na conversa de outras pessoas, que nao pediram nada disso.
+--
+-- Raspando a linha, o dado pessoal some (nome, e-mail, senha, foto, bio,
+-- presenca) e o historico de quem ficou continua de pe. Quem le esta coluna e
+-- o login, que recusa a entrada, e a busca de contatos, que deixa de oferecer
+-- quem nao existe mais.
+ALTER TABLE "User" ADD COLUMN "deletedAt" DATETIME;

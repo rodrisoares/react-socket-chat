@@ -98,6 +98,20 @@ export const uploadLimiter = rateLimit({
   message: { error: 'Muitos anexos enviados em pouco tempo. Tente mais tarde.' },
 });
 
+/**
+ * Exportacao de dados. Cada chamada le o historico inteiro do usuario e monta
+ * um JSON com ele: e a rota mais cara da API, e a que menos precisa ser
+ * chamada duas vezes seguidas.
+ */
+export const exportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: env.exportRateLimit,
+  keyGenerator: byUser,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Muitas exportações seguidas. Tente daqui a pouco.' },
+});
+
 /** Criar conversa ou grupo: raro no uso normal, barato de abusar. */
 export const createChatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

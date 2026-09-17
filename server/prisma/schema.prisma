@@ -37,6 +37,16 @@ model User {
   /// escolha da pessoa. Quem marcou "Ocupado" e foi tomar cafe volta "Ocupado",
   /// e nao "Disponivel". Quem le resolve os dois — ver statusOf em mappers.ts.
   isAway       Boolean  @default(false)
+  /// Conta excluida pelo proprio usuario.
+  ///
+  /// A linha sobrevive, raspada: nome vira "Usuario excluido", e-mail e senha
+  /// sao neutralizados, foto e bio somem. E o que mantem as conversas inteiras
+  /// para quem ficou — o `senderId` de toda mensagem aponta para ca, e apagar a
+  /// linha levaria junto, pelo cascade, metade do dialogo de cada grupo.
+  ///
+  /// Quem le esta coluna e o login, que recusa a entrada, e a busca de
+  /// contatos, que nao oferece quem nao existe mais.
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
 
   participants ChatParticipant[]

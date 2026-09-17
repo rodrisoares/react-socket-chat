@@ -49,3 +49,16 @@ export const updateProfileSchema = z
   });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+/**
+ * Excluir a propria conta.
+ *
+ * Pede a senha, e nao um "tem certeza?": e a acao mais irreversivel do app, e a
+ * senha e o que garante que quem clicou e o dono — nao alguem que encontrou a
+ * aba aberta. Nao se valida forca aqui, como no login: so que veio algo.
+ */
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Informe a senha para confirmar'),
+});
+
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;

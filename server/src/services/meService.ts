@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
 import { CONTACTS_PAGE_SIZE } from '@react-chat/shared';
 import type {
   ChatPage,
@@ -10,6 +11,12 @@ import type {
 import type { UpdateProfileInput } from '@react-chat/shared/schemas';
 
 import { env } from '../config/env.js';
+// Apelidado porque este módulo já exporta um `revokeSession` — o da rota, que
+// encerra a sessão no banco. O de lá só alcança o token que já foi assinado.
+import {
+  revokeSession as revokeStatelessAccess,
+  revokeSessions,
+} from '../config/revokedSessions.js';
 import { removeUpload } from '../config/upload.js';
 import { AppError } from '../errors/AppError.js';
 import * as blocks from '../repositories/blockRepository.js';
@@ -109,7 +116,11 @@ export async function updateProfile(
   // encerrar todas devolveria o usuário para a tela de login. As conexões de
   // socket abertas caem junto, e não só o refresh.
   if (data.passwordHash) {
-    await sessions.revokeOthers(userId, currentSession);
+    const { ids } = await sessions.revokeOthers(userId, currentSession);
+
+    // O refresh das outras morre no banco; o access token delas continuaria
+    // valendo por até 15 min, e é esta lista que o alcança.
+    revokeSessions(ids);
     await events.disconnectSessions(userId, (sessionId) => sessionId !== currentSession);
   }
 
@@ -141,8 +152,9 @@ export function listChats(
 export async function search(userId: number, term: string): Promise<SearchHit[]> {
   if (term.length < MIN_SEARCH_LENGTH) return [];
 
-  const cutoffs = await chats.searchCutoffs(userId);
-  const found = await messages.searchForUser(cutoffs, term, userId);
+  // Sem carregar as participações antes: quem recorta por conversa agora é o
+  // próprio SQL da busca, com um join — ver bestPerChat.
+  const found = await messages.searchForUser(term, userId);
 
   return found.map((message) => ({
     chatId: message.chatId,
@@ -197,6 +209,9 @@ export async function revokeSession(userId: number, sessionId: string): Promise<
   const { count } = await sessions.revoke(sessionId, userId);
   if (count === 0) throw AppError.notFound('Sessão não encontrada');
 
+  // Sem isto, "encerrar" derrubava o socket na hora e deixava o HTTP daquele
+  // aparelho funcionando até o access token dele vencer.
+  revokeStatelessAccess(sessionId);
   await events.disconnectSessions(userId, (id) => id === sessionId);
 }
 
@@ -205,7 +220,9 @@ export async function revokeSession(userId: number, sessionId: string): Promise<
  * quem pediu, que é o oposto do que a ação promete.
  */
 export async function revokeOtherSessions(userId: number, keep: string): Promise<number> {
-  const { count } = await sessions.revokeOthers(userId, keep);
+  const { count, ids } = await sessions.revokeOthers(userId, keep);
+
+  revokeSessions(ids);
   await events.disconnectSessions(userId, (sessionId) => sessionId !== keep);
 
   return count;
@@ -261,6 +278,132 @@ export async function save(userId: number, messageId: string): Promise<void> {
 
 export async function unsave(userId: number, messageId: string): Promise<void> {
   await saved.unsave(userId, messageId);
+}
+
+/**
+ * Exclui a conta — anonimizando, e não apagando a linha.
+ *
+ * A diferença não é detalhe de implementação: o `senderId` de toda mensagem
+ * aponta para o usuário com `onDelete: Cascade`, então apagar a linha levaria
+ * junto tudo o que a pessoa escreveu. Cada grupo de que ela participou ficaria
+ * com metade do diálogo — perguntas sem resposta e respostas sem pergunta, na
+ * conversa de outras pessoas, que não pediram nada disso.
+ *
+ * O que sai de fato: nome, e-mail, senha, foto, bio, recado, presença e o
+ * arquivo do avatar. O que fica é o texto das mensagens, atribuído a "Usuário
+ * excluído".
+ *
+ * A senha é pedida porque esta é a única ação do app sem volta, e ela é o que
+ * distingue o dono de quem encontrou a aba aberta.
+ */
+export async function deleteAccount(userId: number, password: string): Promise<void> {
+  const found = await users.findByIdWithHash(userId);
+  if (!found) throw AppError.notFound('Usuário não encontrado');
+
+  if (!(await bcrypt.compare(password, found.passwordHash))) {
+    throw AppError.badRequest('Senha incorreta');
+  }
+
+  /*
+   * O aviso aos contatos sai antes da saída das conversas.
+   *
+   * O `profileUpdated` emite para quem divide conversa com a pessoa, e essa
+   * lista é montada a partir das participações ativas — depois do `leaveAll`
+   * ela estaria vazia, e ninguém receberia nada.
+   */
+  const anonymous = await users.anonymize(userId, await bcrypt.hash(randomUUID(), 4));
+  await events.profileUpdated(userId, publicUser(anonymous), publicUser(anonymous));
+
+  // Sai de todas as conversas: continuando participante ativa, a conta
+  // anonimizada seria contada em "N participantes" e ficaria eternamente
+  // pendente no recibo de leitura — o ✓✓ daquele grupo nunca mais fecharia.
+  const chatIds = await chats.leaveAllChats(userId);
+  for (const chatId of chatIds) events.chatUpdated(chatId);
+
+  // A foto era arquivo deste servidor: sem isto ela continuaria servida por
+  // URL assinada a quem já a tivesse.
+  if (found.image?.startsWith('/uploads/')) await removeUpload(found.image);
+
+  // Todas as sessões, inclusive a que pediu: não há mais conta para voltar.
+  const { ids } = await sessions.revokeAll(userId);
+  revokeSessions(ids);
+  await events.disconnectSessions(userId, () => true);
+}
+
+/**
+ * Tudo o que este servidor guarda sobre o usuário, num JSON só.
+ *
+ * As mensagens são as dele, e não as das conversas: o que os outros
+ * escreveram para ele não é dado dele, e pô-lo num arquivo exportável seria
+ * entregar de bandeja a conversa privada de terceiros. As conversas entram como
+ * contexto — id, tipo, nome e quando ele entrou.
+ *
+ * O anexo entra pelo nome e pelo tipo, sem o arquivo: um JSON com fotos dentro
+ * seria pesado demais para uma rota síncrona, e o link assinado vence.
+ */
+export async function exportData(userId: number) {
+  const user = await users.findById(userId);
+  if (!user) throw AppError.notFound('Usuário não encontrado');
+
+  const [participations, written, reactions, savedRows, blocked, devices] =
+    await Promise.all([
+      chats.listForExport(userId),
+      messages.listByAuthor(userId),
+      messages.listReactionsBy(userId),
+      saved.listSaved(userId, SAVED_LIMIT),
+      blocks.listBlockedUsers(userId),
+      sessions.listActive(userId),
+    ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    /** O que a exportação cobre, dito no próprio arquivo. */
+    sobre:
+      'Dados da sua conta neste servidor. As mensagens listadas são as que você enviou; o que outras pessoas escreveram pertence a elas e não entra aqui.',
+    perfil: sessionUser(user),
+    conversas: participations.map((participation) => ({
+      id: participation.chat.id,
+      tipo: participation.chat.type,
+      nome: participation.chat.name,
+      descricao: participation.chat.description,
+      criadaEm: participation.chat.createdAt.toISOString(),
+      entrouEm: participation.joinedAt.toISOString(),
+      saiuEm: participation.leftAt?.toISOString() ?? null,
+      fixada: participation.isPinned,
+      silenciada: participation.isMuted,
+      arquivadaEm: participation.archivedAt?.toISOString() ?? null,
+      limpaEm: participation.clearedAt?.toISOString() ?? null,
+      excluidaEm: participation.hiddenAt?.toISOString() ?? null,
+    })),
+    mensagens: written.map((message) => ({
+      id: message.id,
+      conversaId: message.chatId,
+      texto: message.deletedAt ? '' : message.text,
+      enviadaEm: message.createdAt.toISOString(),
+      editadaEm: message.editedAt?.toISOString() ?? null,
+      apagadaEm: message.deletedAt?.toISOString() ?? null,
+      encaminhada: message.isForwarded,
+      anexo: message.attachmentName
+        ? { nome: message.attachmentName, tipo: message.attachmentType }
+        : null,
+    })),
+    reacoes: reactions.map((reaction) => ({
+      mensagemId: reaction.messageId,
+      emoji: reaction.emoji,
+      em: reaction.createdAt.toISOString(),
+    })),
+    salvas: savedRows.map((row) => ({
+      mensagemId: row.message.id,
+      conversaId: row.message.chat.id,
+      salvaEm: row.createdAt.toISOString(),
+    })),
+    bloqueados: blocked.map((person) => ({ id: person.id, nome: person.name })),
+    dispositivos: devices.map((device) => ({
+      userAgent: device.userAgent,
+      entrouEm: device.createdAt.toISOString(),
+      ultimoUso: device.lastUsedAt.toISOString(),
+    })),
+  };
 }
 
 /**

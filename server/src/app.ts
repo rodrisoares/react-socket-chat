@@ -8,6 +8,7 @@ import { logger } from './config/logger.js';
 import { prisma } from './config/prisma.js';
 import { servedTypeOf, UPLOAD_DIR } from './config/upload.js';
 import { isSignatureValid } from './config/attachments.js';
+import { openApiDocument } from './docs/openapi.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 import * as messages from './repositories/messageRepository.js';
 import './socket/index.js';
@@ -90,6 +91,17 @@ app.get('/health', async (_req, res) => {
     logger.error({ error }, 'health: banco indisponível');
     res.status(503).json({ status: 'degraded' });
   }
+});
+
+/**
+ * O documento OpenAPI da API.
+ *
+ * Servido pelo próprio servidor que ele descreve: assim não há como abrir uma
+ * versão de outro deploy por engano. Para ler, cole a resposta em
+ * editor.swagger.io — ou aponte qualquer cliente de API para esta URL.
+ */
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(openApiDocument);
 });
 
 app.use('/api/auth', authRouter);

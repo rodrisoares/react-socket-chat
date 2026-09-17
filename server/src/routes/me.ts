@@ -1,9 +1,9 @@
 import express from 'express';
-import { updateProfileSchema } from '@react-chat/shared/schemas';
+import { deleteAccountSchema, updateProfileSchema } from '@react-chat/shared/schemas';
 
 import { upload, verifyUpload } from '../config/upload.js';
 import * as me from '../controllers/meController.js';
-import { searchLimiter, uploadLimiter } from '../middlewares/rateLimit.js';
+import { exportLimiter, searchLimiter, uploadLimiter } from '../middlewares/rateLimit.js';
 import { requireAuth } from '../middlewares/requireAuth.js';
 import { validate } from '../middlewares/validate.js';
 
@@ -13,6 +13,18 @@ meRouter.use(requireAuth);
 
 meRouter.get('/', me.profile);
 meRouter.patch('/', validate(updateProfileSchema), me.updateProfile);
+
+/**
+ * Levar os dados embora, e ir embora.
+ *
+ * As duas andam juntas de propósito: quem exclui a conta costuma querer o
+ * arquivo antes, e oferecer só a porta de saída seria oferecer meia coisa.
+ *
+ * A exclusão pede a senha no corpo — é a única ação sem volta do app, e a senha
+ * é o que distingue o dono de quem encontrou a aba aberta.
+ */
+meRouter.get('/export', exportLimiter, me.exportData);
+meRouter.delete('/', validate(deleteAccountSchema), me.deleteAccount);
 
 /**
  * Foto propria, por upload — a alternativa aos 16 avatares.
