@@ -128,6 +128,58 @@ export async function isDeletedFor(messageId: string, userId: number): Promise<b
 }
 
 /**
+ * Tudo o que este usuario escreveu, para a exportacao de dados.
+ *
+ * So as dele: a conversa dos outros nao e dado dele, e exporta-la seria
+ * entregar, num arquivo, o que eles escreveram para ele em particular.
+ */
+export function listByAuthor(userId: number) {
+  return prisma.message.findMany({
+    where: { senderId: userId, type: 'TEXT' },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      chatId: true,
+      text: true,
+      createdAt: true,
+      editedAt: true,
+      deletedAt: true,
+      isForwarded: true,
+      attachmentName: true,
+      attachmentType: true,
+    },
+  });
+}
+
+/** As reacoes que este usuario deu — tambem dele, e tambem vao no arquivo. */
+export function listReactionsBy(userId: number) {
+  return prisma.messageReaction.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { messageId: true, emoji: true, createdAt: true },
+  });
+}
+
+/**
+ * Todo caminho de anexo que alguma mensagem ainda referencia — o original e a
+ * miniatura. E a lista do que a varredura de orfaos nao pode apagar.
+ */
+export async function listAttachmentPaths(): Promise<string[]> {
+  const rows = await prisma.message.findMany({
+    where: {
+      OR: [{ attachmentUrl: { not: null } }, { attachmentThumbUrl: { not: null } }],
+    },
+    select: { attachmentUrl: true, attachmentThumbUrl: true },
+  });
+
+  return rows.flatMap((row) =>
+    [row.attachmentUrl, row.attachmentThumbUrl].filter(
+      (path): path is string => path !== null,
+    ),
+  );
+}
+
+/**
  * Nome original de um anexo, pelo caminho gravado. So o download de arquivo
  * precisa dele: o disco guarda o nome gerado, e nunca o que o usuario mandou.
  */
@@ -320,8 +372,8 @@ export const SEARCH_LIMIT = 50;
  * A ordem final e por data, e nao por relevancia: a lista mostra uma conversa
  * por linha, e quem procura espera as conversas ativas no topo.
  */
-export async function searchForUser(scopes: fts.Scope[], term: string, userId: number) {
-  const ids = await fts.bestPerChat(term, scopes, userId);
+export async function searchForUser(term: string, userId: number) {
+  const ids = await fts.bestPerChat(term, userId);
   if (ids.length === 0) return [];
 
   return prisma.message.findMany({

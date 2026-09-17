@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../src/config/prisma.js';
 import { signToken } from '../src/config/jwt.js';
+import { forgetRevokedSessions } from '../src/config/revokedSessions.js';
+import { directKeyOf } from '../src/repositories/chatRepository.js';
 import * as sessions from '../src/repositories/sessionRepository.js';
 
 /** Zera o banco entre os testes, respeitando a ordem das FKs. */
@@ -9,6 +11,11 @@ export async function resetDb(): Promise<void> {
   await prisma.chatParticipant.deleteMany();
   await prisma.chat.deleteMany();
   await prisma.user.deleteMany();
+
+  // A lista de sessoes encerradas e memoria do processo, e a suite inteira roda
+  // num processo so: sem isto, uma sessao revogada num teste continuaria
+  // revogada nos seguintes — e o `tokenFor` usa sempre o mesmo `sid`.
+  forgetRevokedSessions();
 }
 
 export async function createUser(
@@ -33,6 +40,10 @@ export async function createDirectChat(a: number, b: number): Promise<string> {
       // Como o repositorio de verdade: sem o instante de atividade a conversa
       // cai para o fim da ordenacao, que agora e feita pelo banco.
       lastMessageAt: new Date(),
+      // E a chave do par, pelo mesmo motivo: e por ela que o `findDirectBetween`
+      // acha a conversa. Sem ela, pedir para abrir a conversa criava outra —
+      // que e justamente o que a coluna unica existe para impedir.
+      directKey: directKeyOf(a, b),
       participants: { create: [{ userId: a }, { userId: b }] },
     },
   });

@@ -509,21 +509,79 @@ export async function listChatIds(userId: number): Promise<string[]> {
   return rows.map((row) => row.chatId);
 }
 
-/**
- * O que o usuario enxerga de cada conversa sua, para a busca.
- *
- * Alem do clearedAt entra o hiddenAt: numa conversa excluida so o que veio
- * depois do corte existe para este usuario — e achar algo mais antigo na busca
- * a traria de volta pela porta dos fundos. E o leftAt fecha a outra ponta:
- * quem saiu do grupo nao acha o que foi escrito depois da saida.
+/*
+ * Aqui morava o `searchCutoffs`, que carregava todas as participacoes do
+ * usuario para a busca global montar um `OR` por conversa. O recorte passou
+ * para dentro do proprio SQL da busca, num join com ChatParticipant — ver
+ * `bestPerChat` em fts.ts.
  */
-export async function searchCutoffs(userId: number) {
-  const rows = await prisma.chatParticipant.findMany({
+
+/**
+ * As conversas do usuario como a exportacao de dados as descreve: o que ele
+ * participa, desde quando, e o que ele escolheu sobre cada uma.
+ */
+export function listForExport(userId: number) {
+  return prisma.chatParticipant.findMany({
     where: { userId },
-    select: { chatId: true, clearedAt: true, hiddenAt: true, leftAt: true },
+    orderBy: { joinedAt: 'asc' },
+    select: {
+      joinedAt: true,
+      leftAt: true,
+      isPinned: true,
+      isMuted: true,
+      archivedAt: true,
+      clearedAt: true,
+      hiddenAt: true,
+      chat: {
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          description: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Marca a saida de todas as conversas de uma vez — a exclusao de conta.
+ *
+ * Sem isto a conta anonimizada continuaria participante ativa de tudo: contada
+ * em "N participantes", e eternamente pendente no recibo de leitura, porque
+ * ninguem mais le por ela. O ✓✓ de um grupo nunca mais fecharia.
+ *
+ * Nao anuncia nada. O aviso "Fulano saiu do grupo" congela o nome no historico,
+ * e o nome e justamente o que a exclusao veio apagar.
+ *
+ * Devolve as conversas afetadas: quem chama avisa cada uma pelo socket.
+ */
+export async function leaveAllChats(userId: number): Promise<string[]> {
+  const active = await prisma.chatParticipant.findMany({
+    where: { userId, leftAt: null },
+    select: { chatId: true },
   });
 
-  return rows.map((row) => ({ chatId: row.chatId, ...visibilityOf(row) }));
+  const chatIds = active.map((participant) => participant.chatId);
+  if (chatIds.length === 0) return [];
+
+  await prisma.chatParticipant.updateMany({
+    where: { userId, leftAt: null },
+    data: { leftAt: new Date(), isAdmin: false, isPinned: false },
+  });
+
+  return chatIds;
+}
+
+/** As fotos de grupo que sao arquivo deste servidor — ver a varredura de orfaos. */
+export async function listUploadedImages(): Promise<string[]> {
+  const rows = await prisma.chat.findMany({
+    where: { image: { startsWith: '/uploads/' } },
+    select: { image: true },
+  });
+
+  return rows.map((row) => row.image).filter((image): image is string => image !== null);
 }
 
 export function findById(chatId: string) {
@@ -543,20 +601,25 @@ export function findByIdWithMembers(chatId: string) {
   });
 }
 
-/** Conversa direta entre dois usuarios, se ja existir. */
-export async function findDirectBetween(userId: number, otherUserId: number) {
-  const chats = await prisma.chat.findMany({
-    where: {
-      type: 'DIRECT',
-      AND: [
-        { participants: { some: { userId } } },
-        { participants: { some: { userId: otherUserId } } },
-      ],
-    },
+/**
+ * Conversa direta entre dois usuarios, se ja existir.
+ *
+ * Vai direto pelo `directKey`, que e unico e indexado. Antes era um findMany
+ * com dois `some` aninhados — duas subconsultas sobre ChatParticipant para
+ * cada conversa direta do banco, so para descobrir se um par ja tinha a sua.
+ * A coluna existia desde a migracao `direct_chat_key` e resolvia a corrida de
+ * escrita; o caminho de leitura e que continuava sem usa-la.
+ *
+ * O que fica de fora: as duplicatas antigas que ficaram sem chave naquela
+ * migracao. E o certo — a que ficou com a chave e a que tem a atividade
+ * recente, e e para ela que "abrir a conversa" deve levar. A duplicata continua
+ * na lista de quem participa dela, so nao e mais o destino de um pedido novo.
+ */
+export function findDirectBetween(userId: number, otherUserId: number) {
+  return prisma.chat.findUnique({
+    where: { directKey: directKeyOf(userId, otherUserId) },
     include: { participants: true },
   });
-
-  return chats[0] ?? null;
 }
 
 /** A chave do par, sempre na mesma ordem: e o formato que o unique espera. */

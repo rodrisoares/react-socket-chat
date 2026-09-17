@@ -13,7 +13,7 @@ import type { Visibility } from './visibility.js';
  */
 
 /** Uma conversa do usuario, com o pedaco do historico que ele enxerga. */
-export interface Scope extends Visibility {
+interface Scope extends Visibility {
   chatId: string;
 }
 
@@ -82,19 +82,23 @@ function visibleIn(scopes: Scope[]): Prisma.Sql {
  * que e o caso comum: duas mensagens com a mesma palavra pontuam igual, e ai
  * quem procura espera a ultima, nao a primeira de 2023.
  *
- * A CTE existe por uma limitacao do SQLite: o `bm25` so pode ser chamado numa
- * consulta cuja tabela e a propria FTS, e o planejador achatava a subconsulta
- * dentro do agrupamento — "unable to use function bm25 in the requested
- * context". O `MATERIALIZED` impede o achatamento, e o rank fica pronto antes
- * do join.
+ * A CTE `hits` existe por uma limitacao do SQLite: o `bm25` so pode ser chamado
+ * numa consulta cuja tabela e a propria FTS, e o planejador achatava a
+ * subconsulta dentro do agrupamento — "unable to use function bm25 in the
+ * requested context". O `MATERIALIZED` impede o achatamento, e o rank fica
+ * pronto antes do join.
+ *
+ * O recorte de "quais conversas sao suas, e ate onde voce ve cada uma" vem de
+ * um join com ChatParticipant. Antes vinha de fora: a rota carregava todas as
+ * participacoes do usuario e montava um `OR` por conversa aqui dentro — uma
+ * consulta que crescia com a agenda de quem procura, e que com algumas centenas
+ * de conversas virava um SQL de centenas de clausulas. As tres condicoes abaixo
+ * dizem exatamente o que o `visibilityOf` diz em TypeScript: o corte de limpar,
+ * o de excluir, e a saida do grupo.
  */
-export async function bestPerChat(
-  term: string,
-  scopes: Scope[],
-  userId: number,
-): Promise<string[]> {
+export async function bestPerChat(term: string, userId: number): Promise<string[]> {
   const match = toMatchQuery(term);
-  if (!match || scopes.length === 0) return [];
+  if (!match) return [];
 
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     WITH hits AS MATERIALIZED (
@@ -107,8 +111,12 @@ export async function bestPerChat(
              m."createdAt" AS createdAt
       FROM hits
       JOIN "Message" m ON m."rowid" = hits.rid
+      JOIN "ChatParticipant" p
+        ON p."chatId" = m."chatId" AND p."userId" = ${userId}
       WHERE ${searchable(userId)}
-        AND (${visibleIn(scopes)})
+        AND (p."clearedAt" IS NULL OR m."createdAt" > p."clearedAt")
+        AND (p."hiddenAt" IS NULL OR m."createdAt" > p."hiddenAt")
+        AND (p."leftAt" IS NULL OR m."createdAt" <= p."leftAt")
     )
     SELECT id FROM (
       SELECT id,

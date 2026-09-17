@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { prisma } from '../config/prisma.js';
 
 /**
@@ -66,6 +68,9 @@ export function searchOthers(userId: number, term: string, limit: number) {
   return prisma.user.findMany({
     where: {
       id: { not: userId },
+      // Conta excluida nao e oferecida para comecar conversa nova: ela existe
+      // so para as conversas antigas continuarem legiveis.
+      deletedAt: null,
       ...(trimmed
         ? {
             OR: [{ name: { contains: trimmed } }, { email: { contains: trimmed } }],
@@ -78,6 +83,22 @@ export function searchOthers(userId: number, term: string, limit: number) {
     take: limit,
     select: publicUserSelect,
   });
+}
+
+/**
+ * As fotos de perfil que sao arquivo deste servidor.
+ *
+ * O avatar do DiceBear e URL de terceiro e nao ocupa disco nenhum; o que a
+ * varredura de orfaos precisa saber e quais arquivos de uploads/ ainda sao a
+ * foto de alguem.
+ */
+export async function listUploadedImages(): Promise<string[]> {
+  const rows = await prisma.user.findMany({
+    where: { image: { startsWith: '/uploads/' } },
+    select: { image: true },
+  });
+
+  return rows.map((row) => row.image).filter((image): image is string => image !== null);
 }
 
 export function create(data: {
@@ -109,6 +130,47 @@ export function updateProfile(
 
 export function findByIdWithHash(id: number) {
   return prisma.user.findUnique({ where: { id } });
+}
+
+/** Como uma conta excluida se apresenta para quem ficou nas conversas. */
+export const DELETED_USER_NAME = 'Usuário excluído';
+
+/**
+ * Raspa a conta: o dado pessoal sai, a linha fica.
+ *
+ * Fica porque o `senderId` de toda mensagem aponta para ca com `onDelete:
+ * Cascade` — apagar levaria junto tudo o que a pessoa escreveu, e o grupo de
+ * que ela participou ficaria com metade do dialogo: perguntas sem resposta na
+ * conversa de outras pessoas, que nao pediram nada disso.
+ *
+ * O e-mail vira um endereco morto em vez de nulo porque a coluna e unica e
+ * obrigatoria; `.invalid` e o dominio que a RFC 2606 reserva justamente para
+ * nunca existir. A senha vira um hash de valor aleatorio: nao ha o que
+ * adivinhar, e nenhum login chega ate a comparacao de todo modo — o `deletedAt`
+ * o barra antes.
+ */
+export function anonymize(id: number, passwordHash: string) {
+  return prisma.user.update({
+    where: { id },
+    data: {
+      name: DELETED_USER_NAME,
+      email: `excluido-${String(id)}-${randomUUID()}@removed.invalid`,
+      passwordHash,
+      image: null,
+      bio: null,
+      statusText: null,
+      status: 'AVAILABLE',
+      isAway: false,
+      isOnline: false,
+      lastSeenAt: null,
+      // Ninguem mais precisa saber quando esta conta esteve online, e ela nao
+      // le mais nada: os dois interruptores de privacidade fecham.
+      showLastSeen: false,
+      showReadReceipts: false,
+      deletedAt: new Date(),
+    },
+    select: publicUserSelect,
+  });
 }
 
 /**
