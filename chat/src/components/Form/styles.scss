@@ -1,0 +1,143 @@
+.auth {
+  background-color: var(--auth-ground);
+  color: var(--ink);
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  // Como a casca do app: `100%` do #root, que resolve o `dvh`. Com `100vh` a
+  // tela de entrada ficava mais alta que o visível no celular, e o botão
+  // "Entrar" nascia debaixo da barra do navegador.
+  height: 100%;
+  width: 100%;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+
+  &-panel {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 40px 24px;
+  }
+
+  &-form {
+    background-color: var(--auth-card);
+    border: 1px solid var(--auth-line);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 380px;
+    padding: 36px 34px;
+    width: 100%;
+
+    // Sem a coluna da conversa o cartão vira a tela: dispensa a moldura.
+    @media (max-width: 900px) {
+      background: none;
+      border: none;
+      max-width: 420px;
+      padding: 0;
+    }
+
+    &-head {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      h1 {
+        font-family: var(--display-font);
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin: 0;
+      }
+
+      p {
+        color: var(--auth-muted);
+        font-size: 14.5px;
+        line-height: 1.45;
+        margin: 0;
+      }
+    }
+
+    &-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    &-errors {
+      background-color: color-mix(in srgb, #e0574f 14%, transparent);
+      border-left: 2px solid #e0574f;
+      border-radius: 0 8px 8px 0;
+      color: var(--ink);
+      font-size: 13.5px;
+      line-height: 1.5;
+      padding: 10px 14px;
+
+      p {
+        margin: 0;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      li + li {
+        margin-top: 3px;
+      }
+    }
+
+    &-submit {
+      background-color: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: var(--accent-ink);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 13px;
+      transition: filter 0.15s ease, transform 0.1s ease;
+
+      &:hover:not(:disabled) {
+        filter: brightness(1.07);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+    }
+
+    &-footer {
+      color: var(--auth-muted);
+      font-size: 14px;
+      margin: 0;
+      text-align: center;
+
+      a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
+      }
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-form-submit {
+    transition: none;
+  }
+}

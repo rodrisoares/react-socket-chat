@@ -1,0 +1,344 @@
+@use 'config/variables' as *;
+
+.home {
+  &-container {
+    color: $cinza-claro-texto;
+    display: flex;
+    height: 100%;
+    width: 100%;
+  }
+  &-chat {
+    &-container {
+      display: flex;
+      flex-direction: column;
+      gap: $space-5;
+      height: 100%;
+      // Acompanha a janela em vez de ficar presa em 200px.
+      min-width: 260px;
+      padding: $space-5 $space-4;
+      width: clamp(260px, 26%, 380px);
+    }
+
+    // O titulo "Chat" saiu daqui; o avatar tambem, porque a identidade passou
+    // a viver no rail. Sobra o que a lista precisa dizer sobre si mesma.
+    &-identity {
+      align-items: center;
+      display: flex;
+      gap: $space-4;
+      min-height: 34px;
+
+      &-text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+
+        strong {
+          font-size: 16px;
+          font-weight: 600;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      // O status "online" era obvio; o resumo de nao lidas informa de verdade.
+      &-clear {
+        font-size: 12px;
+        opacity: 0.7;
+      }
+    }
+
+    &-input {
+      align-items: center;
+      background-color: $cinza-componentes;
+      border: 1px solid transparent;
+      border-radius: $radius-lg;
+      display: flex;
+      gap: $space-3;
+      padding: 0 $space-4;
+      transition: border-color 0.15s ease;
+
+      // O anel de foco vai na caixa, como no componente Input do resto do app.
+      &:focus-within {
+        border-color: var(--accent, #{$laranja});
+      }
+
+      input {
+        background: none;
+        border: none;
+        color: $cinza-claro-texto;
+        flex: 1;
+        font-size: 14px;
+        min-width: 0;
+        padding: 9px 0;
+
+        &::placeholder {
+          color: var(--ink-muted, #9a958f);
+        }
+
+        &:focus {
+          outline: none;
+        }
+      }
+
+      &-icon {
+        flex-shrink: 0;
+        opacity: 0.7;
+      }
+    }
+
+    &-tabs {
+      display: flex;
+      // Tres abas cabem numa linha ate na largura minima da sidebar (236px).
+      // Eram quatro, e a quarta ficava cortada para fora da area visivel —
+      // "Arquivadas" saiu daqui e virou a linha logo abaixo. O overflow fica
+      // como valvula, para uma traducao mais longa nao esconder nada.
+      flex-wrap: nowrap;
+      gap: $space-1;
+      overflow-x: auto;
+      // A barra horizontal roubaria mais altura do que as abas economizam.
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      &-item {
+        align-items: center;
+        background: none;
+        border: 1px solid $line;
+        border-radius: $radius-pill;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        // Encolher espremeria o rotulo ate ele quebrar no meio da palavra.
+        flex-shrink: 0;
+        font-size: 12.5px;
+        gap: $space-1;
+        padding: $space-1 $space-3;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+        white-space: nowrap;
+
+        &:hover {
+          border-color: var(--accent, #{$laranja});
+        }
+
+        &.is-active {
+          background-color: var(--accent, #{$laranja});
+          border-color: var(--accent, #{$laranja});
+          color: $cinza-escuro-texto;
+          font-weight: 600;
+        }
+      }
+
+      // Dentro da aba ativa o laranja do badge sumiria no fundo laranja.
+      &-count {
+        background-color: var(--accent, #{$laranja});
+        border-radius: $radius-pill;
+        color: $cinza-escuro-texto;
+        font-size: 10px;
+        font-weight: 600;
+        min-width: 16px;
+        padding: 1px 5px;
+        text-align: center;
+      }
+
+      &-item.is-active &-count {
+        background-color: rgba(0, 0, 0, 0.22);
+        color: inherit;
+      }
+    }
+
+
+    /*
+     * Entrada do arquivo, no lugar da quarta aba: linha inteira, com o total
+     * a direita e o nao-lido em badge. No modo arquivo ela vira a volta.
+     */
+    &-archived {
+      align-items: center;
+      background: none;
+      border: 1px solid $line;
+      border-radius: $radius-lg;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      font-size: 13px;
+      gap: $space-3;
+      padding: $space-2 $space-3;
+      text-align: left;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+      width: 100%;
+
+      &:hover {
+        background-color: var(--surface-2, #{$cinza-componentes});
+        border-color: var(--accent, #{$laranja});
+      }
+
+      &-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      &-count {
+        font-size: 12px;
+        opacity: 0.6;
+      }
+
+      &-badge {
+        background-color: var(--accent, #{$laranja});
+        border-radius: $radius-pill;
+        color: $cinza-escuro-texto;
+        font-size: 10px;
+        font-weight: 600;
+        min-width: 18px;
+        padding: 1px 5px;
+        text-align: center;
+      }
+
+      &-chevron {
+        flex-shrink: 0;
+        opacity: 0.45;
+      }
+
+      // Dentro do arquivo o acento marca onde o usuario esta.
+      &--back {
+        border-color: var(--accent, #{$laranja});
+
+        .home-chat-archived-label {
+          font-weight: 600;
+        }
+      }
+    }
+    // Nao rola mais: quem rola e a lista virtualizada dentro dele, que precisa
+    // ser dona do proprio container para medir o que esta visivel.
+    &-content {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    &-list {
+      flex: 1;
+      overflow-y: auto;
+      // Era 15px: sobrava folga demais ao lado de uma barra fina, e cada pixel
+      // aqui sai da largura do card.
+      padding-right: $space-2;
+      scrollbar-color: $cinza-claro-texto $cinza-componentes;
+      scrollbar-width: thin;
+
+      &-canvas {
+        position: relative;
+        width: 100%;
+      }
+
+      // Os cards sao posicionados pelo virtualizador, em coordenadas
+      // absolutas dentro da tela rolavel. Ver components/MessageList.
+      &-row {
+        left: 0;
+        padding-bottom: $space-1;
+        position: absolute;
+        top: 0;
+        width: 100%;
+
+        // Cada linha tem transform proprio, o que cria contexto de empilhamento:
+        // sem subir a linha do menu aberto, as linhas de baixo — irmas, e
+        // depois dela no DOM — pintariam por cima do menu.
+        &:has(.is-menu-open) {
+          z-index: 2;
+        }
+      }
+
+      // Rodape que pede a pagina seguinte; sem texto ele e so o gatilho.
+      &-more {
+        font-size: 12px;
+        margin: 0;
+        min-height: 20px;
+        opacity: 0.6;
+        padding: $space-1 $space-3;
+      }
+
+      // Titulo de secao: "Fixadas" e "Conversas".
+      &-title {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.07em;
+        margin: 6px 0 4px;
+        opacity: 0.55;
+        text-transform: uppercase;
+      }
+    }
+
+    &-empty {
+      font-size: 13px;
+      margin: 8px 0 0;
+      opacity: 0.65;
+    }
+  }
+}
+
+.home-chat-new {
+  align-items: center;
+  background-color: $laranja;
+  border: none;
+  border-radius: 50%;
+  color: $cinza-escuro-texto;
+  cursor: pointer;
+  display: flex;
+  flex-shrink: 0;
+  height: 34px;
+  justify-content: center;
+  transition: transform 0.15s ease;
+  width: 34px;
+
+  &:hover {
+    transform: scale(1.06);
+  }
+}
+
+/* ---------- mobile: lista OU conversa, nunca as duas ---------- */
+
+.home-container {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  /* A lista ocupa a tela inteira — e nao 80% dela, com o chat aparecendo
+     atras por uma fresta. */
+  .home-chat-container {
+    padding: $space-5 $space-4;
+    width: 100%;
+  }
+
+  /* Uma tela, dois destinos: quem manda e haver conversa aberta. */
+  .home-container.has-open-chat .home-chat-container {
+    display: none;
+  }
+
+  /* Sem conversa aberta o Display desenha o estado vazio sem o `-wrapper`,
+     entao os dois seletores precisam estar aqui. */
+  .home-container:not(.has-open-chat) .display-wrapper,
+  .home-container:not(.has-open-chat) > .display {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-chat-new,
+  .home-chat-tabs-item,
+  .home-chat-archived,
+  .home-chat-input {
+    transition: none;
+  }
+
+  .home-chat-new:hover {
+    transform: none;
+  }
+}

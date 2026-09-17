@@ -1,0 +1,122 @@
+@use 'config/variables' as *;
+
+.lightbox {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  justify-content: space-between;
+  padding: $space-5;
+  position: fixed;
+  // Acima do painel de detalhes e da gaveta de conversas do mobile.
+  z-index: 60;
+
+  &-backdrop {
+    background-color: rgba(0, 0, 0, 0.82);
+    inset: 0;
+    position: absolute;
+  }
+
+  &-bar {
+    align-items: center;
+    color: #f4f2f6;
+    display: flex;
+    gap: $space-5;
+    justify-content: space-between;
+    position: relative;
+    width: 100%;
+
+    &-title {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+
+      strong {
+        font-size: 14px;
+      }
+
+      span {
+        font-size: 12px;
+        opacity: 0.7;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &-actions {
+      align-items: center;
+      display: flex;
+      flex-shrink: 0;
+      gap: $space-1;
+
+      a,
+      button {
+        align-items: center;
+        background: none;
+        border: none;
+        border-radius: $radius-md;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        padding: $space-3;
+
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.14);
+        }
+      }
+    }
+  }
+
+  &-stage {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    gap: $space-4;
+    justify-content: center;
+    min-height: 0;
+    position: relative;
+    width: 100%;
+  }
+
+  &-media {
+    // A mídia manda no tamanho até o limite da tela; o resto é fundo.
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: $radius-lg;
+  }
+
+  &-nav {
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.45);
+    border: none;
+    border-radius: 50%;
+    color: #f4f2f6;
+    cursor: pointer;
+    display: flex;
+    height: 44px;
+    justify-content: center;
+    position: absolute;
+    width: 44px;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.7);
+    }
+
+    &--previous {
+      left: 4px;
+    }
+
+    &--next {
+      right: 4px;
+    }
+  }
+
+  &-footer {
+    color: #f4f2f6;
+    font-size: 12px;
+    opacity: 0.75;
+    position: relative;
+  }
+}

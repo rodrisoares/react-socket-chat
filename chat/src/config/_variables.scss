@@ -1,0 +1,36 @@
+/* Cores base. A UI lê as variáveis CSS (index.scss), que trocam com o tema;
+   estes valores SCSS ficam como fallback para quem não usa var(). */
+$cinza-sidebars: var(--surface, #343541);
+$cinza-background-chat: var(--chat-bg, #202123);
+$cinza-componentes: var(--surface-2, #2E2F37);
+$background: var(--background, #131416);
+$laranja: var(--accent, #FFA559);
+$cinza-chat-1: var(--bubble-foreign, #474856);
+$cinza-chat-2: var(--bubble-owner, #30313C);
+$laranja-textos: var(--accent, #FFE6C7);
+$cinza-claro-texto: var(--ink, #DBD7DF);
+$cinza-escuro-texto: var(--accent-ink, #343541);
+
+/* Aliases dos tokens de layout (index.scss), para o SCSS nao repetir var(). */
+$space-0: var(--space-0, 2px);
+$space-1: var(--space-1, 4px);
+$space-2: var(--space-2, 6px);
+$space-3: var(--space-3, 8px);
+$space-4: var(--space-4, 12px);
+$space-5: var(--space-5, 16px);
+$space-6: var(--space-6, 24px);
+
+$radius-sm: var(--radius-sm, 6px);
+$radius-md: var(--radius-md, 8px);
+$radius-lg: var(--radius-lg, 12px);
+$radius-pill: var(--radius-pill, 999px);
+
+/* Contorno da bolha: so o tema claro usa; no escuro e transparente. */
+$bubble-line: var(--bubble-line, transparent);
+
+/* Linha divisoria. O $cinza-chat-1 era usado para isto e para a bolha do
+   outro ao mesmo tempo — quando a bolha clareou, as bordas sumiram junto. */
+$line: var(--line, #474856);
+
+/* Largura maxima da coluna de leitura da conversa. */
+$chat-column: 920px;

@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap');
+
+/* Tema escuro — o padrão do projeto. */
+:root,
+:root[data-theme='dark'] {
+  --background: #131416;
+  --surface: #343541;
+  --surface-2: #2e2f37;
+  --chat-bg: #202123;
+  --bubble-owner: #30313c;
+  --bubble-foreign: #474856;
+  /* No escuro a bolha ja se separa do fundo sozinha: contorno nenhum. */
+  --bubble-line: transparent;
+  /* Citacao dentro do balao: um degrau mais escuro que a propria bolha, e nao
+     uma cor fixa — assim ela funciona igual na bolha sua e na do outro. */
+  --quote-bg: rgba(0, 0, 0, 0.22);
+  --quote-bg-hover: rgba(0, 0, 0, 0.3);
+  --line: #474856;
+  --ink: #dbd7df;
+  --ink-muted: #9a958f;
+  --accent: #ffa559;
+  --accent-ink: #343541;
+
+  /* Autenticacao */
+  --auth-ground: #0f1013;
+  --auth-panel: #17181c;
+  --auth-card: #1e1f25;
+  --auth-field: #26282f;
+  --auth-line: #2e3038;
+  --auth-muted: #8e8a96;
+  --display-font: 'Bricolage Grotesque', 'Work Sans', sans-serif;
+}
+
+:root[data-theme='light'] {
+  --background: #eceaf0;
+  --surface: #ffffff;
+  --surface-2: #f1eff4;
+  --chat-bg: #f2f0f6;
+  /* A sua bolha puxa o acento, a do outro fica neutra — a convencao de
+     WhatsApp e Telegram no claro. Antes as duas eram pasteis parecidos sobre
+     um fundo quase branco, e a conversa virava um bloco unico. */
+  --bubble-owner: #ffe0bd;
+  --bubble-foreign: #ffffff;
+  /* A bolha branca some no fundo claro sem um contorno de apoio. */
+  --bubble-line: #e2ddec;
+  /* No claro o mesmo preto translucido, muito mais fraco: sobre a bolha branca
+     e sobre a pessego ele escurece o quanto basta sem sujar a cor. */
+  --quote-bg: rgba(0, 0, 0, 0.055);
+  --quote-bg-hover: rgba(0, 0, 0, 0.09);
+  --line: #d8d4e0;
+  --ink: #2a2733;
+  --ink-muted: #6b6577;
+  --accent: #d97a24;
+  --accent-ink: #ffffff;
+
+  /* Autenticacao */
+  --auth-ground: #e9e6ef;
+  --auth-panel: #ffffff;
+  --auth-card: #ffffff;
+  --auth-field: #f2f0f6;
+  --auth-line: #ddd8e6;
+  --auth-muted: #6b6577;
+}
+
+/*
+ * Escala de espacamento e raio.
+ *
+ * Os numeros sairam do que ja existia: 8px de raio e 6/8/12/16 de respiro
+ * eram a maioria, e os valores soltos (5px, 10px, 14px) foram encostados no
+ * degrau mais proximo. Fora da escala sobram so o 50% do avatar e o pill.
+ */
+:root {
+  --space-0: 2px;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Anel de foco: um so, para o app inteiro nao ter tres versoes dele. */
+  --focus-ring: 2px solid var(--accent);
+  --focus-offset: 2px;
+}
+
+body,
+#root {
+  align-items: center;
+  background-color: var(--background);
+  color: var(--ink);
+  display: flex;
+  font-family: 'Work Sans', sans-serif;
+  /* `vh` no celular conta a tela inteira, inclusive o pedaço que a barra do
+     navegador cobre: o app ficava mais alto do que o visível e o compositor
+     caía para fora. `dvh` acompanha a barra aparecendo e sumindo; o `vh` fica
+     de reserva para quem não conhece a unidade nova. */
+  height: 100vh;
+  height: 100dvh;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  /* `100%`, e não `100vw`: a unidade de viewport ignora a barra de rolagem, e
+     com ela na tela o conteúdo ficava alguns pixels mais largo do que cabe —
+     uma rolagem horizontal de 15px na janela inteira. */
+  width: 100%;
+}
+
+/* Foco visível em tudo que recebe teclado — antes não havia nenhum. */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Sem outline duplo em quem já pinta o próprio foco. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

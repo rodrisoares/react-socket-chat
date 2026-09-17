@@ -1,0 +1,281 @@
+@use 'config/variables' as *;
+
+.cardChat {
+  // Envolve o card para o menu virar um irmao dele, e nao um botao aninhado
+  // dentro de um role="button". O `flex: 1` era do container: a lista e uma
+  // coluna flex, entao ele governa a altura do card e precisa ficar em quem
+  // agora e filho direto da lista, senao os cards encolhem.
+  &-wrapper {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    position: relative;
+  }
+
+  // Reserva o espaco sempre, visivel ou nao: em `position: absolute` o botao
+  // cobria a hora e o contador de nao lidas assim que o mouse entrava no card.
+  &-menu {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    // Invisivel e nao clicavel: so opacity deixaria um alvo de clique fantasma.
+    visibility: hidden;
+
+    .cardChat-wrapper:hover &,
+    .cardChat-wrapper:focus-within &,
+    .cardChat-wrapper.is-menu-open & {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    // Sem hover (toque) o botão não teria como aparecer.
+    @media (hover: none) {
+      opacity: 1;
+      visibility: visible;
+    }
+  }
+
+  // Ao contrario do menu, nao espera hover: e a acao que a aba "Arquivadas"
+  // existe para oferecer, e some junto com o estado arquivado.
+  &-unarchive {
+    align-items: center;
+    align-self: center;
+    background: none;
+    border: none;
+    border-radius: $radius-sm;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-shrink: 0;
+    opacity: 0.7;
+    padding: 4px;
+
+    &:hover {
+      background-color: var(--surface, #{$cinza-sidebars});
+      opacity: 1;
+    }
+
+    // Dentro da lista rolavel o anel para fora seria cortado na borda.
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: -1px;
+    }
+  }
+
+  // "Rascunho:" antes da previa — o que ficou escrito e nao foi enviado nesta
+  // conversa. Cor de destaque, como no WhatsApp: so em italico o rotulo se
+  // perdia dentro da previa, que ja e texto secundario.
+  &-content-draft {
+    color: var(--accent, #{$laranja});
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  // "@" antes da previa, quando a ultima mensagem chama voce pelo nome.
+  //
+  // Mesmo tratamento do "Rascunho:" acima, e pelo mesmo motivo: dentro de uma
+  // previa que ja e texto secundario, so italico se perderia. O que distingue
+  // os dois e o glifo, nao a cor — sao dois rotulos do mesmo peso, e nenhum
+  // precisa gritar mais alto que o outro.
+  //
+  // Um pouco maior que o texto ao redor porque o "@" sozinho e pequeno demais
+  // para ler de relance num card de 12,5px.
+  &-content-mention {
+    color: var(--accent, #{$laranja});
+    font-size: 1.15em;
+    font-style: normal;
+    font-weight: 700;
+    // Nao encolhe junto com a previa quando ela e cortada em duas linhas.
+    line-height: 1;
+  }
+
+  // Nao lido: o nome ganha peso e a hora acende. E a leitura de relance que
+  // o contador sozinho nao dava.
+  &-wrapper.is-unread {
+    .cardChat-content-name {
+      font-weight: 700;
+    }
+
+    .cardChat-content-message {
+      color: var(--ink, #{$cinza-claro-texto});
+    }
+
+    .cardChat-metadata-time {
+      color: var(--accent, #{$laranja});
+      opacity: 1;
+    }
+  }
+
+  // Pistas do gesto, atras do card: o card desliza e elas aparecem.
+  &-swipe {
+    align-items: center;
+    display: flex;
+    inset: 0;
+    justify-content: space-between;
+    padding: 0 $space-5;
+    position: absolute;
+
+    &-hint {
+      align-items: center;
+      display: flex;
+      font-size: 11px;
+      font-weight: 600;
+      gap: $space-2;
+      opacity: 0.85;
+
+      &--archive {
+        color: var(--accent, #{$laranja});
+      }
+    }
+  }
+
+  &-container {
+    align-items: center;
+    // O gesto horizontal e do card; o vertical continua rolando a lista.
+    touch-action: pan-y;
+    // A barra do estado ativo mora aqui, transparente enquanto nao e o caso:
+    // pintar so no `.is-active` deslocaria o conteudo em 3px.
+    border-left: 3px solid transparent;
+    border-radius: $radius-lg;
+    cursor: pointer;
+    display: flex;
+    flex: 1;
+    gap: $space-4;
+    // Sem isto, os filhos flex não encolhem e o ellipsis nunca aplica.
+    min-width: 0;
+    padding: $space-3;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background-color: var(--surface-2);
+    }
+
+    // Enquanto arrasta, o card vira opaco e viaja por cima das pistas: sem
+    // fundo proprio elas apareceriam atraves dele.
+    .cardChat-wrapper.is-swiping & {
+      background-color: var(--surface, #{$cinza-sidebars});
+      position: relative;
+      transition: none;
+      z-index: 1;
+    }
+
+    // Sem isto nao havia pista nenhuma de qual conversa estava aberta.
+    .cardChat-wrapper.is-active & {
+      background-color: var(--surface-2);
+      border-left-color: var(--accent, #{$laranja});
+    }
+
+    &-image {
+      align-items: center;
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    &-list {
+      display: flex;
+      flex: 1;
+      gap: $space-4;
+      min-width: 0;
+    }
+  }
+
+  &-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: $space-1;
+    min-width: 0;
+
+    &-name {
+      align-items: center;
+      display: flex;
+      font-size: 14.5px;
+      gap: 5px;
+      // Peso normal no estado calmo: com tudo em 600 o card nao tinha
+      // hierarquia, e o nao lido nao tinha como se destacar de nada.
+      font-weight: 500;
+      // Tinha `height: 20px`: nome longo virava duas linhas e a segunda
+      // caía por cima da última mensagem. Agora corta com reticências.
+      line-height: 1.3;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &-pin {
+      color: var(--accent, #{$laranja});
+      flex-shrink: 0;
+    }
+
+    // Discreto de proposito: sinaliza o silencio sem competir com o nome.
+    &-muted {
+      flex-shrink: 0;
+      opacity: 0.55;
+    }
+
+    &-message {
+      color: var(--ink-muted, #9a958f);
+      display: -webkit-box;
+      font-size: 12.5px;
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      word-break: break-word;
+
+      &--typing {
+        color: var(--accent, #{$laranja});
+        font-style: italic;
+      }
+    }
+  }
+
+  &-metadata {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 6px;
+    justify-content: flex-start;
+
+    &-time {
+      font-size: 10.5px;
+      opacity: 0.6;
+      white-space: nowrap;
+    }
+
+    &-unread {
+      align-items: center;
+      background-color: $laranja;
+      border-radius: $radius-pill;
+      color: $cinza-escuro-texto;
+      display: flex;
+      font-size: 10px;
+      font-weight: 600;
+      height: 18px;
+      justify-content: center;
+      min-width: 18px;
+      padding: 0 5px;
+
+      // Conversa silenciada conta, mas nao chama: o laranja cheio ao lado de
+      // um sino cortado era uma contradicao na propria linha.
+      &.is-muted {
+        background-color: var(--surface-2, #{$cinza-componentes});
+        border: 1px solid $line;
+        color: inherit;
+        opacity: 0.8;
+      }
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardChat-container,
+  .cardChat-menu {
+    transition: none;
+  }
+}

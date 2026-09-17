@@ -1,0 +1,16 @@
+# Dependencias: quem reconstroi tudo e o pnpm-lock.yaml, versionado ao lado
+node_modules/
+
+# Saida de build de qualquer pacote do workspace — server/dist, chat/dist e
+# packages/shared/dist. Sem barra no inicio, o padrao vale em qualquer nivel.
+dist/
+
+# Editor e sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

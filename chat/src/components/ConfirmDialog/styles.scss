@@ -1,0 +1,45 @@
+@use 'config/variables' as *;
+
+.confirm {
+  &-message {
+    font-size: 14.5px;
+    line-height: 1.5;
+    margin: 0;
+    opacity: 0.85;
+  }
+
+  &-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+
+    button {
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 10px 18px;
+    }
+
+    &-cancel {
+      background: none;
+      border: 1px solid var(--line, #{$cinza-chat-1});
+      color: inherit;
+
+      &:hover {
+        border-color: var(--accent, #{$laranja});
+      }
+    }
+
+    // Vermelho, nao laranja: e o botao que descarta a sessao.
+    &-ok {
+      background-color: #c9453f;
+      border: none;
+      color: #fff;
+
+      &:hover {
+        background-color: #b23b36;
+      }
+    }
+  }
+}

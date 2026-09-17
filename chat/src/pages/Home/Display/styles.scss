@@ -1,0 +1,1030 @@
+@use 'config/variables' as *;
+
+.display {
+  background-color: $cinza-background-chat;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: $space-6 $space-6;
+  width: 100%;
+
+  // Em tela pequena cada pixel de respiro sai da largura do balao.
+  @media (max-width: 768px) {
+    padding: $space-4 $space-4 $space-3;
+  }
+  &-header {
+    border-bottom: 1px solid $line;
+    padding-bottom: $space-5;
+    &-content {
+      align-items: center;
+      display: flex;
+      gap: 16px;
+      h2 {
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 28px;
+        margin: 0;
+      }
+      span {
+        cursor: pointer;
+        font-size: 12px;
+      }
+    }
+  }
+
+  &-messages {
+    border-bottom: 1px solid $line;
+    // `block`, e nao `flex`: quem posiciona os balões agora e o virtualizador,
+    // em coordenadas absolutas dentro da tela rolavel. Ver components/MessageList.
+    display: block;
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 8px 40px 0;
+    position: relative;
+    scrollbar-color: $cinza-claro-texto $cinza-background-chat;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+
+    // Depois das declaracoes, e nao no meio delas: o Sass avisa que declaracao
+    // apos regra aninhada vai mudar de comportamento para acompanhar o CSS.
+    // Sem mensagem nao ha lista virtual — volta a ser uma caixa centrada.
+    &--empty {
+      align-items: center;
+      display: flex;
+      justify-content: center;
+    }
+
+    &-item {
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+      justify-content: space-between;
+      padding: 12px 16px;
+
+      // Convencao de todo app de chat: as suas mensagens a direita.
+      &--owner {
+        background-color: $cinza-chat-2;
+        border-bottom-right-radius: 2px;
+        margin-left: auto;
+      }
+
+      &--foreign {
+        background-color: $cinza-chat-1;
+        // Transparente no escuro; no claro e o que separa a bolha do fundo.
+        border: 1px solid $bubble-line;
+        border-bottom-left-radius: 2px;
+        margin-right: auto;
+      }
+
+      &-name {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      &-date {
+        font-size: 10px;
+        text-align: right;
+      }
+    }
+  }
+
+  &-input {
+    // `flex-end`, e nao `center`: com o campo crescendo, o botao de enviar e os
+    // icones precisam ficar na base, alinhados com a ultima linha digitada.
+    align-items: flex-end;
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+
+    // Arquivo pairando sobre o compositor: o alvo se anuncia. Sem realce, quem
+    // arrasta nao sabe se soltar ali vai anexar ou abrir o arquivo na aba.
+    &.is-dragging {
+      background-color: var(--quote-bg);
+      border-radius: $radius-md;
+      outline: 2px dashed var(--accent, #{$laranja});
+      outline-offset: -4px;
+    }
+
+    &-element {
+      background-color: $cinza-background-chat;
+      border: 1px solid $cinza-claro-texto;
+      border-radius: 8px;
+      color: $cinza-claro-texto;
+      // Obrigatorio: `textarea` nao herda a fonte do documento, e sem isto o
+      // campo de escrita passaria a sair em monospace.
+      font-family: inherit;
+      font-size: 14px;
+      flex: 1;
+      // A altura quem manda e o JS, que mede o conteudo (ver MessageComposer).
+      // Aqui fica so o teto e o canto de rolagem, para o compositor nao comer
+      // a conversa numa mensagem longa.
+      line-height: 1.4;
+      max-height: 140px;
+      min-width: 0;
+      overflow-y: auto;
+      padding: 10.5px 16px;
+      // O punho de redimensionar brigaria com o crescimento automatico.
+      resize: none;
+      &::placeholder {
+        color: var(--ink-muted, #9a958f);
+      }
+    }
+    &-button {
+      align-items: center;
+      background-color: $laranja;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+
+      // Envio em andamento: o botão responde que recebeu o clique.
+      &:disabled {
+        cursor: progress;
+        opacity: 0.6;
+      }
+    }
+  }
+
+  &-empty {
+    align-items: center;
+    color: $laranja-textos;
+    display: flex;
+    font-size: 16px;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 40px;
+    line-height: 28px;
+    text-align: center;
+
+    // A saida do estado vazio. Antes a tela so constatava que nao havia
+    // conversa escolhida; quem nunca teve nenhuma ficava sem o proximo passo.
+    &-action {
+      align-items: center;
+      background-color: var(--accent, #{$laranja});
+      border: none;
+      border-radius: $radius-pill;
+      color: var(--accent-ink, #{$cinza-escuro-texto});
+      cursor: pointer;
+      display: flex;
+      font-size: 14px;
+      font-weight: 600;
+      gap: $space-2;
+      padding: $space-2 $space-5;
+
+      &:hover {
+        opacity: 0.9;
+      }
+    }
+  }
+}
+
+/* ---------- Fase 5 ---------- */
+
+.display-wrapper {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.display {
+  &-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+
+    /*
+     * O alvo de "ver detalhes": avatar e nome junto com o subtitulo, e nao so
+     * uma linha de 10px sublinhada — era o alvo mais dificil da barra para a
+     * acao mais procurada dela.
+     */
+    &-open {
+      align-items: center;
+      background: none;
+      border: none;
+      border-radius: $radius-md;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      flex: 1;
+      gap: 16px;
+      min-width: 0;
+      padding: $space-1;
+      text-align: left;
+
+      &:hover {
+        background-color: var(--surface, #{$cinza-sidebars});
+      }
+
+      &:focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: var(--focus-offset);
+      }
+    }
+
+    // A linha sob o nome informa — por isso deixou de ser um link sublinhado,
+    // e ganhou tamanho de texto legivel.
+    &-content-name span {
+      display: block;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    &-actions {
+      align-items: center;
+      display: flex;
+      flex-shrink: 0;
+      gap: 4px;
+    }
+
+    &-search {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      opacity: 0.75;
+      padding: 6px;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+
+  &-search {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    padding: 10px 0 0;
+
+    input {
+      background-color: $cinza-componentes;
+      border: 1px solid $line;
+      border-radius: $radius-md;
+      color: $cinza-claro-texto;
+      flex: 1;
+      font-size: 14px;
+      padding: $space-3 $space-4;
+    }
+
+    &-count {
+      font-size: 12px;
+      opacity: 0.7;
+      white-space: nowrap;
+    }
+  }
+
+  &-day {
+    font-size: 11px;
+    margin: 12px 0;
+    opacity: 0.6;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  &-load-more {
+    align-self: center;
+    background: none;
+    border: 1px solid $line;
+    border-radius: $radius-pill;
+    color: inherit;
+    cursor: pointer;
+    font-size: 13px;
+    margin-bottom: $space-4;
+    padding: $space-2 $space-5;
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+
+  &-no-results,
+  &-typing,
+  &-error {
+    font-size: 13px;
+    margin: 8px 0;
+    opacity: 0.75;
+  }
+
+  &-typing {
+    color: $laranja-textos;
+    font-style: italic;
+  }
+
+  &-error {
+    color: #ffb4b4;
+    opacity: 1;
+  }
+
+  // Ocupa o lugar do campo de escrita quando o usuario saiu do grupo.
+  &-readonly {
+    border-top: 1px solid var(--line, #{$cinza-chat-1});
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.7;
+    padding: 16px 4px 8px;
+    text-align: center;
+  }
+
+  /*
+   * Miniatura do anexo de imagem, dentro do chip de rascunho.
+   *
+   * O nome do arquivo nao diz qual foto e: com tres capturas de tela seguidas,
+   * "Captura 2026-09-16 103045.png" nao distingue nada.
+   */
+  &-draft-thumb {
+    border-radius: 4px;
+    flex-shrink: 0;
+    height: 28px;
+    // `cover` para a miniatura ficar quadrada sem distorcer a foto.
+    object-fit: cover;
+    width: 28px;
+  }
+
+  /*
+   * Progresso do envio do anexo.
+   *
+   * Trilho fino acima do compositor, e nao um numero: o que se quer saber e se
+   * ainda anda, nao o percentual exato.
+   */
+  &-progress {
+    background-color: var(--surface-2, #{$cinza-componentes});
+    border-radius: $radius-pill;
+    height: 4px;
+    margin-top: 10px;
+    overflow: hidden;
+
+    &-bar {
+      background-color: var(--accent, #{$laranja});
+      height: 100%;
+      // A transicao suaviza os saltos do onUploadProgress, que chega em blocos.
+      transition: width 0.15s linear;
+    }
+  }
+
+  &-draft {
+    align-items: center;
+    background-color: $cinza-componentes;
+    border-left: 3px solid $laranja;
+    border-radius: 6px;
+    display: flex;
+    font-size: 13px;
+    gap: 10px;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding: 8px 12px;
+
+    span {
+      align-items: center;
+      display: flex;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+
+      em {
+        font-style: normal;
+        opacity: 0.7;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    button {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+    }
+  }
+
+  &-messages-item {
+    max-width: min(560px, 70%);
+    position: relative;
+    width: fit-content;
+
+    /*
+     * Citação como cartão, no formato que WhatsApp e Telegram consolidaram:
+     * fundo próprio um degrau mais escuro que a bolha, barra de acento e duas
+     * linhas curtas. Era uma barra fina com o texto solto a 80% de opacidade,
+     * sem nada separando a citação da resposta logo abaixo.
+     *
+     * O fundo é translúcido (`--quote-bg`) para valer igual na sua bolha e na
+     * do outro, que têm cores diferentes.
+     */
+    &-reply {
+      align-items: center;
+      background-color: var(--quote-bg);
+      border-left: 3px solid var(--accent, #{$laranja});
+      border-radius: $radius-sm;
+      box-sizing: border-box;
+      // Duas colunas: o texto encolhe, a miniatura nao.
+      display: flex;
+      font-size: 12px;
+      gap: $space-3;
+      margin-bottom: $space-2;
+      // Ocupa a largura do balão: meio cartão flutuando ficava torto.
+      max-width: 100%;
+      overflow: hidden;
+      padding: $space-2 $space-3;
+      width: 100%;
+
+      // Coluna do texto: e ela que cede espaco para a miniatura.
+      &-body {
+        display: block;
+        flex: 1;
+        min-width: 0;
+      }
+
+      &-thumb {
+        border-radius: $radius-sm;
+        flex-shrink: 0;
+        height: 34px;
+        object-fit: cover;
+        width: 34px;
+      }
+
+      &-who {
+        color: var(--accent, #{$laranja});
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.4;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      // Uma linha só: a citação é uma pista do que se responde, e não a
+      // mensagem de novo — inteira, ela competia com a própria resposta.
+      &-text {
+        display: block;
+        font-style: normal;
+        line-height: 1.4;
+        opacity: 0.72;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      em#{&}-text {
+        font-style: italic;
+        opacity: 0.6;
+      }
+    }
+
+    &-deleted {
+      font-style: italic;
+      opacity: 0.6;
+    }
+
+    &-attachment {
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      text-decoration: none;
+
+      img {
+        border-radius: 8px;
+        max-height: 220px;
+        max-width: 100%;
+      }
+    }
+
+    &-meta {
+      align-items: center;
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 4px;
+
+      em {
+        font-size: 10px;
+        font-style: normal;
+        opacity: 0.6;
+      }
+    }
+
+    &-receipt {
+      align-items: center;
+      display: flex;
+      gap: 2px;
+      opacity: 0.8;
+
+      // Lida por todos: o ✓✓ acende. Antes os dois estados tinham a mesma
+      // cor, e so a forma do icone os separava.
+      &.is-read {
+        color: var(--accent, #{$laranja});
+        opacity: 1;
+      }
+
+      // Em grupo o recibo vira botao: mostra "2/4" e abre a lista de nomes.
+      &--button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        font-size: 10px;
+        padding: 0;
+      }
+    }
+
+    &-readers {
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 11px;
+      margin-top: 6px;
+      padding-top: 6px;
+
+      p {
+        margin: 0;
+        opacity: 0.85;
+      }
+
+      strong {
+        font-weight: 600;
+        opacity: 0.7;
+      }
+
+      &-pending {
+        margin-top: 2px;
+        opacity: 0.6;
+      }
+    }
+
+    // Imagem e video ocupam a largura do balao; o botao existe so para o
+    // clique abrir o visor, entao ele nao pinta nada.
+    &-media {
+      display: block;
+      margin-bottom: 6px;
+      position: relative;
+
+      img,
+      video {
+        border-radius: 8px;
+        display: block;
+        max-height: 260px;
+        max-width: 100%;
+      }
+
+      &-open {
+        background: none;
+        border: none;
+        cursor: zoom-in;
+        display: block;
+        padding: 0;
+      }
+
+      &-expand {
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.55);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        padding: 5px;
+        position: absolute;
+        right: 6px;
+        top: 6px;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.78);
+        }
+      }
+    }
+
+    &-actions {
+      background-color: $cinza-sidebars;
+      border-radius: 6px;
+      display: none;
+      gap: 2px;
+      padding: 2px;
+      position: absolute;
+      right: 6px;
+      top: -10px;
+
+      button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        display: flex;
+        opacity: 0.75;
+        padding: 4px;
+
+        &:hover {
+          opacity: 1;
+        }
+      }
+    }
+
+    /*
+     * A barra so aparecia no hover — e no toque nao ha hover. Pior: o navegador
+     * do celular emula um hover no tap, entao ela abria e ficava presa ate se
+     * tocar noutro lugar. Aqui o hover vale so onde ele existe de verdade.
+     *
+     * No toque quem abre e o toque longo, que marca `is-touch-open`; arrastar o
+     * balao para a direita responde. Ver components/MessageItem.
+     */
+    @media (hover: hover) {
+      &:hover &-actions {
+        display: flex;
+      }
+    }
+
+    &:focus-within &-actions,
+    &.is-touch-open &-actions {
+      display: flex;
+    }
+
+    // Volta suave ao soltar o gesto; durante o arrasto quem manda e o dedo,
+    // sem atraso nenhum entre o movimento e o balao.
+    transition: transform 0.15s ease;
+
+    &.is-swiping {
+      transition: none;
+    }
+
+    /* Pista do arrasto: a seta de responder aparece atras do balao. */
+    &-swipe {
+      align-items: center;
+      color: var(--accent, #{$laranja});
+      display: flex;
+      left: -28px;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    // Fica visivel sempre: e conteudo da mensagem, nao acao escondida no hover.
+    &-forwarded {
+      align-items: center;
+      display: flex;
+      font-size: 11px;
+      font-style: italic;
+      gap: 4px;
+      margin-bottom: 4px;
+      opacity: 0.6;
+    }
+
+    &-reactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    &-reaction {
+      background-color: var(--surface, #{$cinza-sidebars});
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: inherit;
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 1px 7px;
+
+      &:disabled {
+        cursor: default;
+      }
+
+      // A minha reacao fica marcada: sem isto nao da para saber onde clicar
+      // para remover.
+      &.is-mine {
+        border-color: var(--accent, #{$laranja});
+      }
+    }
+  }
+
+  &-input-tools {
+    display: flex;
+    gap: 4px;
+    position: relative;
+
+    button {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      opacity: 0.75;
+      padding: 6px;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+}
+
+/* ---------- coluna de leitura, salto e busca ---------- */
+
+/*
+ * Tudo que acompanha as mensagens usa a mesma coluna que elas: com o
+ * compositor indo de borda a borda e os balões centrados, os dois pareciam
+ * telas diferentes. O cabeçalho fica de fora de propósito — é uma barra.
+ */
+.display-search,
+.display-draft,
+.display-input,
+// A barra de progresso entra na lista: sem isto ela atravessaria a largura
+// toda enquanto o compositor logo abaixo fica na coluna, e as duas pareceriam
+// pertencer a telas diferentes.
+.display-progress,
+.display-typing,
+.display-error,
+.display-readonly,
+.display-messages--empty .skeleton-messages {
+  margin-inline: auto;
+  max-width: $chat-column;
+  width: 100%;
+}
+
+.display-header-back {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: $radius-md;
+  color: inherit;
+  cursor: pointer;
+  // No desktop a lista está sempre à vista: não há para onde voltar.
+  display: none;
+  margin-left: -$space-1;
+  padding: $space-1;
+
+  &:hover {
+    background-color: var(--surface-2, #{$cinza-componentes});
+  }
+
+  @media (max-width: 768px) {
+    display: flex;
+  }
+}
+
+.display-search-nav {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: $space-0;
+
+  button {
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: $radius-sm;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    opacity: 0.8;
+    padding: $space-1;
+
+    &:hover {
+      background-color: var(--surface-2, #{$cinza-componentes});
+      opacity: 1;
+    }
+  }
+}
+
+/* Ocorrência do termo dentro do balão. */
+.display-messages-item-match {
+  background-color: var(--accent, #{$laranja});
+  border-radius: 3px;
+  color: var(--accent-ink, #{$cinza-escuro-texto});
+  padding: 0 1px;
+}
+
+/*
+ * Formatação simples do texto: *negrito*, _itálico_ e `código`.
+ *
+ * Classes compostas, e não exclusivas: um pedaço pode ser negrito e itálico ao
+ * mesmo tempo, e uma classe por combinação daria quatro nomes para dois efeitos
+ * — e oito assim que entrasse um terceiro.
+ */
+.display-messages-item-bold {
+  font-weight: 700;
+}
+
+.display-messages-item-italic {
+  font-style: italic;
+}
+
+.display-messages-item-code {
+  background-color: var(--surface-2, #{$cinza-componentes});
+  border-radius: 3px;
+  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  /* O monoespaçado desenha maior que o texto ao redor no mesmo tamanho. */
+  font-size: 0.92em;
+  padding: 0 4px;
+  /* Trecho longo quebra dentro do balão em vez de esticá-lo. */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Menção a alguém da conversa.
+ *
+ * Pelo mesmo motivo que o link logo abaixo herda a cor: acento chapado some
+ * contra o fundo do balão de quem enviou. Aqui quem marca é o peso mais um
+ * fundo translúcido, que funciona nos dois lados sem precisar de uma regra
+ * própria para cada.
+ */
+.display-messages-item-mention {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  font-weight: 600;
+  padding: 0 3px;
+}
+
+/*
+ * Endereço dentro do texto da mensagem.
+ *
+ * Herda a cor do balão de propósito: o azul padrão do navegador some contra o
+ * fundo do balão de quem enviou. Quem diz que aquilo é clicável passa a ser o
+ * sublinhado, que por isso fica.
+ */
+.display-messages-item-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+
+  &:hover {
+    opacity: 0.75;
+  }
+}
+
+/* Citação clicável: o alvo do salto. */
+.display-messages-item-reply--link {
+  border-bottom: none;
+  border-right: none;
+  border-top: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 0.15s ease;
+
+  // O fundo acende um degrau: é o que diz que o cartão é clicável sem ter de
+  // gritar isso o tempo todo.
+  &:hover {
+    background-color: var(--quote-bg-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display-messages-item-reply--link {
+    transition: none;
+  }
+}
+
+/*
+ * Alvo de um salto ou da ocorrência atual da busca. O anel fica enquanto o
+ * foco durar; o brilho inicial é o que faz o olho achar a mensagem depois da
+ * rolagem.
+ */
+.display-messages-item.is-highlighted {
+  animation: message-flash 1.4s ease-out;
+  outline: 2px solid var(--accent, #{$laranja});
+  outline-offset: 2px;
+}
+
+@keyframes message-flash {
+  0% {
+    background-color: var(--accent, #{$laranja});
+  }
+  60% {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display-messages-item.is-highlighted {
+    animation: none;
+  }
+}
+
+/* ---------- foco visível nos controles da conversa ---------- */
+
+/*
+ * O anel global (index.scss) vale para todos, mas com `outline-offset: 2px`
+ * ele vazava por cima da mídia e do balão vizinho. Aqui ele é puxado para
+ * dentro, nos controles que ficam colados em outra coisa.
+ */
+.display-messages-item-media-open,
+.display-messages-item-media-expand,
+.display-messages-item-actions button,
+.display-messages-item-reaction,
+.display-messages-item-receipt--button {
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+  }
+}
+
+.display-messages-item-reply--link:focus-visible,
+.display-header-back:focus-visible,
+.display-header-search:focus-visible,
+.display-input-tools button:focus-visible,
+.display-input-button:focus-visible,
+.display-empty-action:focus-visible,
+.display-search-nav button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---------- mensagem fixada ---------- */
+
+/*
+ * Banner logo abaixo do cabecalho, no formato que WhatsApp e Telegram usam.
+ * Segue a mesma coluna de leitura das mensagens, e nao a largura toda: ele
+ * pertence a conversa, nao a barra de cima.
+ */
+.display-pinned {
+  align-items: center;
+  background-color: var(--quote-bg);
+  border-left: 3px solid var(--accent, #{$laranja});
+  border-radius: $radius-sm;
+  box-sizing: border-box;
+  display: flex;
+  gap: $space-3;
+  margin: $space-4 auto 0;
+  max-width: $chat-column;
+  padding: $space-2 $space-3;
+  width: 100%;
+
+  &-icon {
+    color: var(--accent, #{$laranja});
+    flex-shrink: 0;
+  }
+
+  // O corpo e o alvo do clique: leva ate a mensagem, como a citacao.
+  &-body {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    font: inherit;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+
+    strong {
+      color: var(--accent, #{$laranja});
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    span {
+      font-size: 12px;
+      opacity: 0.75;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: var(--focus-offset);
+    }
+  }
+
+  &-close {
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: $radius-sm;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-shrink: 0;
+    opacity: 0.7;
+    padding: $space-0;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: -1px;
+    }
+  }
+}
+
+/* Acao ligada na barra da mensagem: salva, ou fixada. */
+.display-messages-item-actions button.is-on {
+  color: var(--accent, #{$laranja});
+  opacity: 1;
+}

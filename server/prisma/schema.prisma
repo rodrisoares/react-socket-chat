@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  /// Hash bcrypt. Nunca sai do servidor — veja publicUserSelect no repositorio.
+  passwordHash String
+  image        String?
+  /// Texto livre que o usuario escreve sobre si; aparece nos detalhes do contato.
+  bio          String?
+  /// "AVAILABLE" | "BUSY" | "AWAY" | "DND". String porque o SQLite nao suporta
+  /// enum. Escolhido a mao; so vale quando isOnline — offline pinta cinza.
+  status       String   @default("AVAILABLE")
+  isOnline     Boolean  @default(false)
+  /// Instante do ultimo disconnect. Alimenta o "visto por ultimo" do cabecalho.
+  lastSeenAt   DateTime?
+  /// Privacidade: com false, o lastSeenAt nunca sai do servidor para os outros.
+  /// Ver publicUser() no userRepository — o dado e removido na serializacao,
+  /// e nao escondido na UI.
+  showLastSeen Boolean  @default(true)
+  /// Recibo de leitura. Vale para os dois lados: quem desliga para de mandar
+  /// o proprio ✓✓ e para de receber o dos outros.
+  showReadReceipts Boolean @default(true)
+  /// Recado livre ao lado do status: "Em reuniao ate as 15h".
+  statusText   String?
+  /// Ausencia automatica por inatividade, detectada pelo proprio navegador.
+  ///
+  /// Coluna separada do `status` de proposito: sobrescrever o status apagaria a
+  /// escolha da pessoa. Quem marcou "Ocupado" e foi tomar cafe volta "Ocupado",
+  /// e nao "Disponivel". Quem le resolve os dois — ver statusOf em mappers.ts.
+  isAway       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  participants ChatParticipant[]
+  messages     Message[]
+  reactions    MessageReaction[]
+  sessions     Session[]
+  saved        SavedMessage[]
+  /// Mensagens que este usuario apagou so para si.
+  messageDeletions MessageDeletion[]
+  /// Quem este usuario bloqueou, e quem o bloqueou.
+  blocksMade     Block[] @relation("BlocksMade")
+  blocksReceived Block[] @relation("BlocksReceived")
+}
+
+/**
+ * Sessao de longa duracao — uma por dispositivo conectado.
+ *
+ * O JWT do header continua sendo o access token, curto e sem estado; esta
+ * tabela guarda o refresh, que o renova sem pedir a senha. E ela tambem que
+ * permite listar e encerrar os dispositivos conectados.
+ */
+model Session {
+  id String @id @default(uuid())
+  userId Int
+  /// SHA-256 do refresh token. O valor cru so existe no client, como a senha.
+  tokenHash String @unique
+  /// User-Agent de quem entrou, para a lista de sessoes dizer algo util.
+  userAgent String?
+  createdAt DateTime @default(now())
+  /// Atualizado a cada renovacao: e o "visto por ultimo" da sessao.
+  lastUsedAt DateTime @default(now())
+  expiresAt DateTime
+  /// Encerrada: pelo logout, pela lista de sessoes, ou pela troca de senha.
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/**
+ * Bloqueio: estado privado de quem bloqueou, como o isPinned e o isMuted.
+ * O bloqueado nunca e avisado — o envio dele so falha.
+ */
+model Block {
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blockedId Int
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model Chat {
+  id        String   @id @default(uuid())
+  /// "DIRECT" ou "GROUP". String porque o SQLite nao suporta enum no Prisma.
+  type      String   @default("DIRECT")
+  /// Preenchido apenas em grupos; conversas diretas usam o nome do outro.
+  name      String?
+  image     String?
+  /// Descricao do grupo — o "assunto", que o painel de detalhes mostra.
+  description String?
+  /// Codigo do link de convite, ou null enquanto ninguem gerou um.
+  ///
+  /// Unico porque e ele que resolve o convite para uma conversa. Guardado como
+  /// codigo, e nao como URL inteira: o endereco do site pode mudar, o convite
+  /// nao. Gerar de novo invalida o anterior, que e como se revoga um link.
+  inviteCode String? @unique
+  /// So administradores escrevem. Nao fecha o grupo para leitura — quem nao e
+  /// admin continua lendo tudo, so nao envia.
+  onlyAdminsSend Boolean @default(false)
+  createdAt DateTime @default(now())
+  /// Instante da ultima mensagem — desnormalizado para a lista poder ser
+  /// ordenada e paginada pelo banco. Escrito junto com a mensagem, na mesma
+  /// transacao. Null so em conversa que nasceu antes desta coluna existir.
+  lastMessageAt DateTime?
+
+  /// O par de uma conversa direta, como "menorId:maiorId".
+  ///
+  /// Unico: e ele que impede duas criacoes simultaneas gerarem duas conversas
+  /// para as mesmas duas pessoas. Antes a rota lia e criava em seguida, e duas
+  /// requisicoes ao mesmo tempo passavam as duas pela leitura vazia.
+  ///
+  /// Null em grupo, e tambem nas diretas duplicadas que ja existiam quando a
+  /// coluna nasceu: no SQLite o unique ignora nulos, entao a duplicata antiga
+  /// sobrevive sem bloquear a migracao.
+  directKey String? @unique
+
+  /// Mensagem fixada no topo da conversa. Compartilhada: todo mundo ve a
+  /// mesma, ao contrario do isPinned do ChatParticipant, que fixa a conversa
+  /// na lista de quem fixou. Apagar a mensagem solta o pino (SetNull).
+  pinnedMessageId String?
+  pinnedMessage   Message?  @relation("PinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
+  pinnedAt        DateTime?
+  pinnedById      Int?
+
+  participants ChatParticipant[]
+  messages     Message[] @relation("ChatMessages")
+
+  @@index([pinnedMessageId])
+  @@index([lastMessageAt])
+}
+
+/// Substitui o unreadMessages denormalizado: o nao-lido vira contagem
+/// de mensagens com createdAt > lastReadAt.
+model ChatParticipant {
+  id         Int       @id @default(autoincrement())
+  chatId     String
+  userId     Int
+  lastReadAt DateTime?
+  /// Marcado a mao pelo usuario: mantem a conversa como nao lida mesmo
+  /// depois de aberta. Limpo assim que ele marca como lida de novo.
+  isUnread   Boolean   @default(false)
+  /// Fixada pelo usuario: sobe para o topo da lista, antes da ordem por data.
+  isPinned   Boolean   @default(false)
+  /// Quem criou o grupo pode renomear e remover participantes.
+  isAdmin    Boolean   @default(false)
+  joinedAt   DateTime  @default(now())
+  /// Arquivada pelo usuario. Guarda o instante, e nao um booleano: mensagem
+  /// mais nova que isto desarquiva sozinha, sem precisar limpar flag a cada
+  /// envio. Ver isArchived em listForUser.
+  archivedAt DateTime?
+  /// Silenciada para sempre: nao toca nem notifica. O nao-lido continua
+  /// contando. Silenciar por tempo usa o mutedUntil; este e o "ate eu desfazer".
+  isMuted    Boolean   @default(false)
+  /// Silenciada ate este instante. Passado o prazo a conversa volta a avisar
+  /// sozinha, sem ninguem precisar limpar nada — e por isso um instante, e nao
+  /// um booleano com tarefa agendada para desligar depois.
+  mutedUntil DateTime?
+  /// Corte privado do historico: mensagens anteriores a este instante somem
+  /// da visao deste participante. E o que "Limpar conversa" move. As mensagens
+  /// sao compartilhadas numa tabela unica, entao o corte e por participante.
+  clearedAt  DateTime?
+  /// "Excluir conversa" = limpar + sumir da lista. So o segundo efeito mora
+  /// aqui, para limpar poder acontecer sem esconder nada. Como o archivedAt,
+  /// vale apenas enquanto nao chega mensagem mais nova.
+  hiddenAt   DateTime?
+  /// Saiu do grupo, ou foi removido. A linha sobrevive para a conversa ficar
+  /// na lista em somente leitura ate ser excluida. Null = participante ativo.
+  leftAt     DateTime?
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String    @id @default(uuid())
+  chatId    String
+  senderId  Int
+  text      String
+  /// "TEXT" | "SYSTEM". String porque o SQLite nao suporta enum.
+  ///
+  /// SYSTEM e o aviso que o proprio grupo produz — "Fulano adicionou Beltrano",
+  /// "saiu", "renomeou o grupo". Fica na mesma tabela para entrar no historico
+  /// na ordem certa, mas nao e mensagem de ninguem: nao aceita reacao, resposta,
+  /// edicao nem encaminhamento, e o `senderId` guarda so quem causou o evento.
+  ///
+  /// O texto e gravado ja pronto. Os nomes congelam no instante do evento, o que
+  /// e o historico correto: se Beltrano trocar de nome depois, a linha continua
+  /// dizendo o que aconteceu naquele dia.
+  type      String    @default("TEXT")
+  createdAt DateTime  @default(now())
+  /// Preenchido ao editar; a UI mostra "editada".
+  editedAt  DateTime?
+  /// Exclusao logica: a mensagem continua na thread como "mensagem apagada".
+  deletedAt DateTime?
+
+  /// Mensagem citada na resposta.
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  /// Anexo servido de /uploads.
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
+  /// Dimensoes da imagem, medidas no upload pelo sharp.
+  ///
+  /// Sao o que permite a tela reservar o espaco antes de a imagem chegar: sem
+  /// elas o balao nasce sem altura e empurra a conversa quando a foto carrega.
+  /// Null em video e nos demais anexos — o sharp nao le video — e null tambem
+  /// nos anexos enviados antes desta coluna existir.
+  attachmentWidth  Int?
+  attachmentHeight Int?
+  /// Miniatura da imagem, gerada no upload. Arquivo irmao do original, pela
+  /// convencao `<base>.thumb.webp` — ver config/upload.ts.
+  attachmentThumbUrl String?
+
+  /// Encaminhada: a UI mostra o rotulo. O texto e o anexo sao copiados, nunca
+  /// referenciados — apagar a original nao pode levar a copia junto.
+  isForwarded Boolean @default(false)
+
+  chat      Chat              @relation("ChatMessages", fields: [chatId], references: [id], onDelete: Cascade)
+  sender    User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reactions MessageReaction[]
+  /// Quem apagou esta mensagem so para si.
+  deletions MessageDeletion[]
+  /// Conversas que fixaram esta mensagem — na pratica, no maximo uma.
+  pinnedIn  Chat[]            @relation("PinnedMessage")
+  savedBy   SavedMessage[]
+
+  @@index([chatId, createdAt])
+}
+
+/**
+ * Favorito: a mensagem salva por alguem. Privado de quem salvou, como o
+ * bloqueio e o silenciar — o autor da mensagem nunca fica sabendo.
+ */
+model SavedMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId])
+}
+
+/**
+ * "Apagar para mim": a mensagem some da visao de uma pessoa so.
+ *
+ * Tabela propria, e nao uma coluna, porque a mensagem e compartilhada — cada
+ * participante decide por si. E o oposto do `deletedAt`, que apaga para todos e
+ * deixa "mensagem apagada" no lugar: aqui a linha some sem deixar buraco, e
+ * ninguem mais fica sabendo.
+ *
+ * Quem le precisa filtrar em todo lugar que devolve mensagem: historico,
+ * janela, busca, galeria, favoritos e a previa do card.
+ */
+model MessageDeletion {
+  id        Int      @id @default(autoincrement())
+  messageId String
+  userId    Int
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+/// Uma reacao por pessoa por mensagem: reagir de novo troca o emoji.
+model MessageReaction {
+  id        Int      @id @default(autoincrement())
+  messageId String
+  userId    Int
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}

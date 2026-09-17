@@ -1,0 +1,82 @@
+@use 'config/variables' as *;
+
+/*
+ * "Dados da mensagem": quem leu, e quando.
+ *
+ * Mora num modal porque a lista cresce com o grupo — dentro do balao ela
+ * empurraria a conversa, e numa lista virtualizada um painel flutuante nasce
+ * recortado (foi por isso que o recibo curto ficou dentro do balao, e este nao).
+ */
+.message-info {
+  /* A mensagem de que se trata. Sem ela o painel abre sem dizer de qual. */
+  &-quote {
+    background-color: $cinza-sidebars;
+    border-left: 2px solid var(--accent, #{$laranja});
+    border-radius: $radius-sm;
+    margin: 0;
+    max-height: 96px;
+    overflow-y: auto;
+    padding: $space-2 $space-3;
+    white-space: pre-wrap;
+    /* Texto longo nao pode esticar o modal: quebra dentro da propria caixa. */
+    overflow-wrap: anywhere;
+  }
+
+  &-sent {
+    font-size: 12px;
+    margin: $space-2 0 0;
+    opacity: 0.7;
+  }
+
+  &-section {
+    margin-top: $space-4;
+
+    h4 {
+      font-size: 12px;
+      margin: 0 0 $space-2;
+      opacity: 0.7;
+      text-transform: uppercase;
+    }
+  }
+
+  &-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      align-items: center;
+      display: flex;
+      gap: $space-3;
+    }
+  }
+
+  &-name {
+    /* Ocupa o vao: e ele que empurra o horario para a direita. */
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-time {
+    flex-shrink: 0;
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+  &-empty {
+    font-size: 13px;
+    margin: $space-3 0 0;
+    opacity: 0.7;
+  }
+
+  &-error {
+    color: #d9534f;
+    font-size: 13px;
+    margin: $space-3 0 0;
+  }
+}

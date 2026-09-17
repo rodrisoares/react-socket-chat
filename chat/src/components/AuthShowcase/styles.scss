@@ -1,0 +1,173 @@
+.auth-showcase {
+  background-color: var(--auth-panel);
+  border-right: 1px solid var(--auth-line);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  justify-content: center;
+  padding: 48px 44px;
+
+  // Abaixo de 900px o formulário fica com a tela inteira.
+  @media (max-width: 900px) {
+    display: none;
+  }
+
+  &-brand {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+
+    img {
+      height: 30px;
+      width: auto;
+    }
+
+    span {
+      font-family: var(--display-font);
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+  }
+
+  &-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 340px;
+  }
+
+  &-caption {
+    color: var(--auth-muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+    margin: 0;
+    max-width: 300px;
+  }
+}
+
+/* Mesmos balões do chat: cantos assimétricos e lados invertidos. */
+.auth-bubble {
+  animation: auth-rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  font-size: 13.5px;
+  gap: 2px;
+  max-width: 78%;
+  padding: 10px 14px;
+  width: fit-content;
+
+  p {
+    margin: 0;
+  }
+
+  &--them {
+    background-color: var(--bubble-foreign);
+    // No tema claro a bolha do outro e branca, como o cartao atras dela: sem
+    // o contorno ela desaparece. No escuro a variavel e transparente.
+    border: 1px solid var(--bubble-line);
+    border-bottom-left-radius: 3px;
+    margin-right: auto;
+  }
+
+  &--me {
+    background-color: var(--bubble-owner);
+    border-bottom-right-radius: 3px;
+    margin-left: auto;
+  }
+
+  &-who {
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.65;
+  }
+
+  &-meta {
+    align-items: center;
+    display: flex;
+    font-size: 10.5px;
+    gap: 5px;
+    justify-content: flex-end;
+    opacity: 0.6;
+  }
+
+  &-read {
+    color: var(--accent);
+    letter-spacing: -2px;
+    opacity: 1;
+  }
+}
+
+/* O elemento assinatura: alguém está digitando com você agora. */
+.auth-typing {
+  align-items: center;
+  animation: auth-rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+  color: var(--auth-muted);
+  display: flex;
+  font-size: 12.5px;
+  gap: 8px;
+  margin-top: 2px;
+
+  &-dots {
+    align-items: center;
+    background-color: var(--bubble-foreign);
+    border: 1px solid var(--bubble-line);
+    border-radius: 12px;
+    display: flex;
+    gap: 3px;
+    padding: 8px 10px;
+
+    i {
+      animation: auth-pulse 1.3s ease-in-out infinite;
+      background-color: var(--accent);
+      border-radius: 50%;
+      height: 5px;
+      width: 5px;
+
+      &:nth-child(2) {
+        animation-delay: 0.18s;
+      }
+
+      &:nth-child(3) {
+        animation-delay: 0.36s;
+      }
+    }
+  }
+}
+
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes auth-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-bubble,
+  .auth-typing {
+    animation: none;
+  }
+
+  .auth-typing-dots i {
+    animation: none;
+    opacity: 0.7;
+  }
+}

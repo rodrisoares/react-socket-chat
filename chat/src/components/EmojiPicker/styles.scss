@@ -1,0 +1,49 @@
+@use 'config/variables' as *;
+
+.emoji-picker {
+  background-color: var(--surface-2, #{$cinza-componentes});
+  border: 1px solid var(--line, #{$cinza-chat-1});
+  border-radius: 12px;
+  bottom: calc(100% + 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 4px;
+  // 6 colunas para os 32 emojis darem 6 linhas: o painel fica quadrado, em vez
+  // da faixa larga e baixa que 8 colunas produziam.
+  grid-template-columns: repeat(6, 1fr);
+  left: 0;
+  padding: 10px;
+  position: absolute;
+  width: 276px;
+  z-index: 30;
+
+  /**
+   * Painel das reacoes: vai num portal para o body, entao se posiciona pela
+   * janela. A lista de mensagens e virtualizada e recorta o que passa da
+   * linha — dentro do balao este painel nasceria cortado.
+   */
+  &--floating {
+    bottom: auto;
+    position: fixed;
+    z-index: 60;
+  }
+
+  &-item {
+    aspect-ratio: 1;
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    font-size: 20px;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--line, #{$cinza-chat-1});
+    }
+  }
+}

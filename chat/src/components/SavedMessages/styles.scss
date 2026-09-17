@@ -1,0 +1,118 @@
+@use 'config/variables' as *;
+
+/*
+ * A lista deixou de ser modal e virou pagina (ver pages/Saved). O que muda e a
+ * moldura: a rolagem e da coluna, e o cabecalho e da pagina, nao do dialogo.
+ */
+.saved-page {
+  display: flex;
+  flex-direction: column;
+  gap: $space-5;
+  height: 100%;
+  margin-inline: auto;
+  max-width: 720px;
+  overflow-y: auto;
+  padding: $space-6;
+  width: 100%;
+
+  &-head {
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    p {
+      font-size: 13px;
+      margin: 4px 0 0;
+      opacity: 0.65;
+    }
+  }
+}
+
+.saved-messages {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  &-item {
+    background-color: var(--surface-2, #{$cinza-componentes});
+    border-left: 3px solid var(--accent, #{$laranja});
+    border-radius: $radius-md;
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+    padding: $space-3;
+  }
+
+  &-head {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    strong {
+      font-size: 13px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: 11px;
+      opacity: 0.6;
+    }
+  }
+
+  // Tres linhas: o suficiente para reconhecer a mensagem sem virar um muro.
+  &-text {
+    display: -webkit-box;
+    font-size: 13.5px;
+    margin: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    word-break: break-word;
+  }
+
+  &-actions {
+    display: flex;
+    gap: $space-4;
+
+    button {
+      align-items: center;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      font-size: 12px;
+      gap: $space-2;
+      opacity: 0.8;
+      padding: 0;
+
+      &:hover {
+        opacity: 1;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  &-remove:hover {
+    color: #e0736c;
+  }
+
+  &-empty,
+  &-error {
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.7;
+  }
+
+  &-error {
+    color: #ffb4b4;
+  }
+}

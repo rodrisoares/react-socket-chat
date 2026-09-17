@@ -1,0 +1,99 @@
+@use 'config/variables' as *;
+
+/*
+ * Recorte quadrado da foto de perfil.
+ *
+ * O lado da janela e 260px aqui e no componente (VIEWPORT). Sao dois lugares
+ * para o mesmo numero, e isso nao e descuido: a conta do recorte precisa dele
+ * em JavaScript, e o layout precisa dele em CSS antes de qualquer script rodar.
+ * Mudar um sem o outro desalinha o que se ve do que se corta.
+ */
+.cropper {
+  &-hint {
+    font-size: 13px;
+    margin: 0 0 $space-3;
+    opacity: 0.75;
+  }
+
+  &-error {
+    color: #ffb4b4;
+    font-size: 13px;
+    margin: 0 0 $space-3;
+  }
+
+  &-viewport {
+    background-color: #000;
+    border-radius: 50%;
+    cursor: grab;
+    height: 260px;
+    margin-inline: auto;
+    overflow: hidden;
+    position: relative;
+    // O dedo arrasta o recorte, e nao rola a pagina por baixo dele.
+    touch-action: none;
+    // A borda circular mostra o que sera o avatar; o recorte em si e quadrado.
+    width: 260px;
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    img {
+      left: 50%;
+      max-width: none;
+      position: absolute;
+      top: 50%;
+      // Sem transicao: ela faria a imagem perseguir o dedo com atraso.
+      user-select: none;
+    }
+  }
+
+  &-zoom {
+    align-items: center;
+    display: flex;
+    gap: $space-3;
+    margin-top: $space-4;
+
+    span {
+      font-size: 13px;
+      opacity: 0.75;
+    }
+
+    input {
+      flex: 1;
+    }
+  }
+
+  &-actions {
+    display: flex;
+    gap: $space-3;
+    justify-content: flex-end;
+    margin-top: $space-4;
+  }
+
+  &-cancel,
+  &-confirm {
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 8px 14px;
+  }
+
+  &-cancel {
+    background: none;
+    border: 1px solid var(--line, #{$cinza-chat-1});
+    color: inherit;
+  }
+
+  &-confirm {
+    background-color: var(--accent, #{$laranja});
+    border: none;
+    color: $cinza-escuro-texto;
+    font-weight: 600;
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+  }
+}

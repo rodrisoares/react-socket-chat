@@ -1,0 +1,159 @@
+@use 'config/variables' as *;
+
+/**
+ * A rolagem continua na `.display-messages`, definida no Display: só o miolo
+ * muda. O `gap` da coluna nao vale mais — os itens sao posicionados em
+ * `absolute` pelo virtualizador —, entao o respiro entre balões vem da linha.
+ */
+.message-list {
+  /**
+   * Coluna de leitura: em tela larga os balões ficavam jogados nos cantos de
+   * uma faixa de 2000px, porque o limite de 70% era do balão, não da coluna.
+   * O mesmo `max-width` vale para o compositor, no Display.
+   */
+  &-canvas {
+    margin-inline: auto;
+    max-width: $chat-column;
+    position: relative;
+    width: 100%;
+  }
+
+  &-row {
+    display: flex;
+    flex-direction: column;
+    gap: $space-3;
+    left: 0;
+    padding-bottom: $space-3;
+    position: absolute;
+    top: 0;
+    width: 100%;
+  }
+
+  /*
+   * Sentinela do topo: entrar na area visivel e o que pede a pagina anterior.
+   * Fica fora da area virtualizada, acima dos balões, e rola junto com eles.
+   *
+   * Tem altura mesmo vazio, e isso nao e enfeite: um elemento de altura zero
+   * nunca "entra na tela" para o IntersectionObserver, e a carga automatica
+   * nao dispararia nunca.
+   */
+  &-top {
+    align-items: center;
+    display: flex;
+    font-size: 12px;
+    justify-content: center;
+    margin-inline: auto;
+    max-width: $chat-column;
+    min-height: $space-6;
+    opacity: 0.7;
+    padding-bottom: $space-3;
+    width: 100%;
+  }
+
+  /*
+   * O irmao do sentinela acima, no outro extremo: ele so existe depois de um
+   * salto, quando a lista termina no meio da conversa e ainda ha o que buscar
+   * para a frente. Mesma altura minima, e pelo mesmo motivo.
+   */
+  &-bottom {
+    align-items: center;
+    display: flex;
+    font-size: 12px;
+    justify-content: center;
+    margin-inline: auto;
+    max-width: $chat-column;
+    min-height: $space-6;
+    opacity: 0.7;
+    padding-top: $space-3;
+    width: 100%;
+  }
+}
+
+/*
+ * Botao de voltar ao fim. O involucro tem altura zero e fica grudado no fim da
+ * area visivel: sem isso ele empurraria o conteudo e deixaria um vao morto
+ * depois da ultima mensagem.
+ */
+.message-list-anchor {
+  bottom: 0;
+  height: 0;
+  position: sticky;
+  z-index: 2;
+}
+
+.message-list-jump {
+  align-items: center;
+  background-color: $cinza-sidebars;
+  border: 1px solid $line;
+  border-radius: $radius-pill;
+  bottom: $space-4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: $space-2;
+  padding: $space-2 $space-3;
+  position: absolute;
+  right: $space-4;
+
+  &:hover {
+    border-color: var(--accent, #{$laranja});
+  }
+
+  // Quantas chegaram enquanto o usuario lia mais acima.
+  &-count {
+    font-size: 11px;
+    font-weight: 600;
+  }
+}
+
+/*
+ * Aviso do grupo: "Fulano adicionou Beltrano", "saiu", "renomeou o grupo".
+ *
+ * Linha centralizada, e nao balao. O aviso nao e de ninguem — o `userId` dele
+ * guarda so quem causou o evento —, e desenha-lo do lado dessa pessoa diria que
+ * foi ela que escreveu aquilo.
+ *
+ * Mora aqui, ao lado do divisor e do separador de dia, porque e da mesma
+ * familia: marcacao da conversa, e nao conversa.
+ */
+.display-messages-system {
+  display: flex;
+  justify-content: center;
+  padding: $space-2 0;
+
+  span {
+    background-color: $cinza-sidebars;
+    border: 1px solid $line;
+    border-radius: $radius-pill;
+    font-size: 12px;
+    opacity: 0.85;
+    padding: $space-2 $space-3;
+    text-align: center;
+  }
+}
+
+/*
+ * Divisor "Novas mensagens": a linha atravessa a coluna e o rotulo fica no
+ * meio dela, como o separador de dia — mas no acento, porque este marca onde
+ * a leitura parou.
+ */
+.display-new-divider {
+  align-items: center;
+  color: var(--accent, #{$laranja});
+  display: flex;
+  font-size: 11px;
+  font-weight: 600;
+  gap: $space-3;
+  margin: $space-3 0;
+  text-transform: uppercase;
+
+  &::before,
+  &::after {
+    background-color: var(--accent, #{$laranja});
+    content: '';
+    flex: 1;
+    height: 1px;
+    opacity: 0.4;
+  }
+}

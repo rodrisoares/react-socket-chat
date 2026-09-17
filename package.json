@@ -1,0 +1,20 @@
+{
+  "name": "react-socket-chat",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Chat em tempo real: servidor Express + Socket.IO, cliente React e um pacote com o contrato entre os dois",
+  "scripts": {
+    "dev": "pnpm --filter @react-chat/shared build && pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "db:seed": "pnpm --filter server db:seed",
+    "db:reset": "pnpm --filter server db:reset",
+    "db:studio": "pnpm --filter server db:studio"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

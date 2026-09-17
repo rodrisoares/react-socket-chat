@@ -1,0 +1,60 @@
+@use 'config/variables' as *;
+
+.connection-banner {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 12.5px;
+  gap: $space-3;
+  justify-content: center;
+  margin: 0;
+  padding: $space-2 $space-4;
+  text-align: center;
+
+  &--reconnecting {
+    background-color: rgba(224, 163, 62, 0.16);
+    color: #e0a33e;
+  }
+
+  &--offline {
+    background-color: rgba(217, 83, 79, 0.16);
+    color: #e0736c;
+  }
+
+  &-hint {
+    opacity: 0.75;
+
+    // Numa sidebar estreita a explicacao empurraria o rotulo para fora.
+    @media (max-width: 560px) {
+      display: none;
+    }
+  }
+
+  &-spinner {
+    animation: connection-spin 1.4s linear infinite;
+    flex-shrink: 0;
+  }
+
+  // Anunciado pelo leitor de tela, invisivel para todo mundo.
+  &-sr {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}
+
+@keyframes connection-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-banner-spinner {
+    animation: none;
+  }
+}

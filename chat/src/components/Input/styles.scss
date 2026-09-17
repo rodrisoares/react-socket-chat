@@ -1,0 +1,75 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  &-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  &-box {
+    align-items: center;
+    background-color: var(--auth-field);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    display: flex;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    // O anel de foco fica na caixa, não no input, por causa do botão do olho.
+    &:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+
+    &--error {
+      border-color: #e0574f;
+    }
+  }
+
+  &-input {
+    background: none;
+    border: none;
+    color: var(--ink);
+    flex: 1;
+    font-family: inherit;
+    font-size: 15px;
+    min-width: 0;
+    padding: 12px 14px;
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--auth-muted);
+    }
+  }
+
+  &-reveal {
+    background: none;
+    border: none;
+    color: var(--auth-muted);
+    cursor: pointer;
+    display: flex;
+    padding: 10px 12px;
+
+    &:hover {
+      color: var(--ink);
+    }
+  }
+
+  &-hint {
+    color: var(--auth-muted);
+    font-size: 12.5px;
+    margin: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-box {
+    transition: none;
+  }
+}

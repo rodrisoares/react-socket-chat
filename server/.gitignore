@@ -1,0 +1,25 @@
+node_modules/
+dist/
+
+# Ambiente (versionar apenas o .env.example)
+.env
+
+# Banco SQLite local — recriado com `pnpm exec prisma migrate dev` + seed
+*.db
+test.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Client do Prisma, gerado por `prisma generate`
+src/generated/
+
+# Anexos enviados pelos usuarios
+uploads/
+
+# Ferramentas de IA: um caminho por linha — juntos numa linha so, com o " e "
+# no meio, nenhum dos dois era ignorado.
+.claude/skills/
+.windsurf/
+.agents/
+skills-lock.json

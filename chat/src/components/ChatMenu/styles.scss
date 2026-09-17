@@ -1,0 +1,120 @@
+@use 'config/variables' as *;
+
+.chat-menu {
+  position: relative;
+
+  &-trigger {
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    opacity: 0.7;
+    padding: 4px;
+
+    &:hover {
+      background-color: var(--surface, #{$cinza-sidebars});
+      opacity: 1;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #{$laranja});
+      outline-offset: 1px;
+    }
+  }
+
+  &-list {
+    background-color: var(--surface, #{$cinza-sidebars});
+    border: 1px solid var(--line, #{$cinza-chat-1});
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    list-style: none;
+    margin: 0;
+    min-width: 190px;
+    padding: 4px;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 40;
+
+    button {
+      align-items: center;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      font-size: 13.5px;
+      gap: 8px;
+      padding: 8px 10px;
+      text-align: left;
+      white-space: nowrap;
+      width: 100%;
+
+      &:hover {
+        background-color: var(--surface-2, #{$cinza-componentes});
+      }
+    }
+
+    // Limpar e excluir são as ações sem volta: ficam num bloco à parte.
+    &-divider {
+      border-top: 1px solid var(--line, #{$cinza-chat-1});
+      margin-top: 4px;
+      padding-top: 4px;
+    }
+
+    // Excluir vai além de limpar — tira a conversa da lista —, e é a única
+    // em vermelho.
+    &-danger button {
+      color: #e5534b;
+    }
+
+    /*
+     * Menu portado para o `body`.
+     *
+     * Dentro da lista de conversas o menu era recortado: o contêiner tem
+     * `overflow-y: auto`, e as conversas do fim abriam para baixo, passando da
+     * borda. Aqui a posicao vem medida em JS, entao `right` e `top` do menu
+     * ancorado precisam sair do caminho.
+     *
+     * Nada mais muda: os seletores deste arquivo sao classes planas, e nao
+     * descendentes de `.chat-menu` — por isso o estilo sobrevive a mudanca de
+     * lugar na arvore.
+     */
+    &--floating {
+      position: fixed;
+      right: auto;
+      top: auto;
+    }
+  }
+
+  /*
+   * Prazos do silenciar.
+   *
+   * Aninhados sob o item, e nao num painel flutuante ao lado: o menu do card ja
+   * nasce colado na borda direita da lista, e um submenu lateral sairia da tela
+   * justamente onde ele e mais usado.
+   *
+   * A barra a esquerda faz o papel da indentacao — ela diz que estas opcoes
+   * pertencem ao item de cima, sem custar largura num menu de 190px.
+   */
+  &-durations {
+    border-left: 2px solid var(--line, #{$cinza-chat-1});
+    list-style: none;
+    margin: 2px 0 2px 14px;
+    padding: 0;
+
+    button {
+      font-size: 13px;
+      opacity: 0.85;
+      padding: 6px 10px;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+}

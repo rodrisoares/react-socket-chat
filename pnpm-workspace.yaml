@@ -1,0 +1,15 @@
+packages:
+  - server
+  - chat
+  - packages/*
+
+# Reunido do que havia em cada app: com um workspace só, a permissão de build
+# de dependência nativa passa a morar aqui.
+allowBuilds:
+  esbuild: true
+  prisma: true
+  "@prisma/engines": true
+  better-sqlite3: true
+  # Observador nativo de arquivos, opcional: sem o build ele cai no fs.watch
+  # do Node, que serve para o modo dev.
+  "@parcel/watcher": false

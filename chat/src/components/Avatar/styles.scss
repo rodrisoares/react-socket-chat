@@ -1,0 +1,74 @@
+@use 'config/variables' as *;
+
+.avatar {
+  &-container {
+    align-items: center;
+    cursor: inherit;
+    flex-shrink: 0;
+    background-color: $laranja;
+    border-radius: 50%;
+    display: flex;
+    height: 48px;
+    justify-content: center;
+    position: relative;
+    width: 48px;
+    * {
+      color: $cinza-claro-texto;
+    }
+    &::before {
+      border-radius: 50%;
+      bottom: 0;
+      content: '';
+      height: 10px;
+      position: absolute;
+      right: 0;
+      width: 10px;
+      z-index: 2;
+    }
+    &--online {
+      &::before {
+        background-color: #3fa860;
+      }
+    }
+    &--busy {
+      &::before {
+        background-color: #d9534f;
+      }
+    }
+    &--away {
+      &::before {
+        background-color: #e0a33e;
+      }
+    }
+    // "Não perturbe" divide o vermelho com "Ocupado", então o que o distingue
+    // é a forma: a barra branca atravessada, que é o símbolo de sempre. Só
+    // mudar o tom deixaria os dois indistinguíveis num ponto de 10px.
+    &--dnd {
+      &::before {
+        background-color: #b5342f;
+        background-image: linear-gradient(
+          to bottom,
+          transparent 40%,
+          #fff 40%,
+          #fff 60%,
+          transparent 60%
+        );
+      }
+    }
+    &--offline {
+      &::before {
+        background-color: gray;
+      }
+    }
+  }
+
+  &-image {
+    border-radius: 50%;
+    height: 48px;
+    overflow: hidden;
+    width: 48px;
+    img {
+      width: 100%;
+    }
+  }
+}

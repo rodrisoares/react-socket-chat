@@ -1,0 +1,184 @@
+@use 'config/variables' as *;
+
+.container {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  // `100%` do #root, que já resolve o `dvh`. Era `100vh`, e o `vh` do celular
+  // conta também o pedaço que a barra do navegador cobre: a casca ficava mais
+  // alta que o visível e o compositor caía para fora da tela — exatamente o
+  // bug que o `dvh` do #root tinha sido posto para resolver.
+  height: 100%;
+  // A moldura de 80px desperdicava a tela inteira no desktop.
+  padding: 12px;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+.navbar {
+  align-items: center;
+  background-color: $cinza-sidebars;
+  border-radius: 8px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: 16px 10px;
+  width: 72px;
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    height: 64px;
+    padding: 10px 16px;
+    width: 100%;
+  }
+
+  &-top {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+
+    @media (max-width: 768px) {
+      flex-direction: row;
+      gap: 14px;
+    }
+  }
+
+  &-logo {
+    display: flex;
+    height: 30px;
+    width: 30px;
+
+    img {
+      width: 100%;
+    }
+  }
+
+  // Os destinos do rail, empilhados no desktop e em linha no mobile.
+  &-nav {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+
+    @media (max-width: 768px) {
+      flex-direction: row;
+      gap: 4px;
+      width: auto;
+    }
+  }
+
+  // Tres itens de navegacao, cada um uma rota. Os estados ja estavam escritos
+  // aqui desde quando havia um item so — agora eles servem para algo.
+  &-item {
+    text-decoration: none;
+
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    color: $cinza-claro-texto;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    gap: 3px;
+    padding: 8px 6px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    width: 100%;
+
+    &:hover {
+      background-color: var(--surface-2, #{$cinza-componentes});
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent, #{$laranja});
+      outline-offset: 1px;
+    }
+
+    &.is-active {
+      background-color: var(--surface-2, #{$cinza-componentes});
+      color: var(--accent, #{$laranja});
+    }
+
+    // Ancora do badge: sem isto ele se posicionaria pelo botao inteiro,
+    // e cairia sobre a legenda "Chat".
+    &-icon {
+      display: flex;
+      position: relative;
+    }
+
+    &-badge {
+      background-color: var(--accent, #{$laranja});
+      border-radius: 999px;
+      color: $cinza-escuro-texto;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      min-width: 16px;
+      padding: 3px 4px;
+      position: absolute;
+      right: -8px;
+      text-align: center;
+      top: -6px;
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: row;
+      gap: 6px;
+      padding: 6px 10px;
+      width: auto;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-item {
+    transition: none;
+  }
+}
+
+.content {
+  background-color: $cinza-sidebars;
+  border-radius: $radius-md;
+  // Coluna: a faixa de conexão fica no topo e empurra a tela, em vez de
+  // flutuar por cima do cabeçalho da conversa.
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.container-loading {
+  color: $cinza-claro-texto;
+  font-size: 16px;
+  margin: auto;
+}
+
+/* Esqueleto da restauracao de sessao: mesma divisao da tela real. */
+.container-restoring {
+  display: flex;
+  height: 100%;
+  width: 100%;
+
+  &-list {
+    box-sizing: border-box;
+    min-width: 260px;
+    padding: 16px 10px;
+    width: clamp(260px, 26%, 380px);
+  }
+
+  &-display {
+    background-color: var(--chat-bg, #{$cinza-background-chat});
+    flex: 1;
+  }
+}
