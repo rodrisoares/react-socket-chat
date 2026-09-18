@@ -6,6 +6,7 @@ import Avatar from 'components/Avatar';
 import Input from 'components/Input';
 import PasswordChecklist from 'components/PasswordChecklist';
 import SessionList from 'components/SessionList';
+import Switch from 'components/Switch';
 import fetch from 'config/fetchInstance';
 import useNotifications from 'hooks/notifications';
 import useBlocks from 'hooks/blocks';
@@ -253,41 +254,29 @@ export default function Settings() {
 
           {/* O interruptor vale para os dois lados no servidor: desligado, o
               horário deixa de sair daqui — não é só a sua tela que muda. */}
-          <label className='profile-switch'>
-            <input
-              type='checkbox'
-              checked={showLastSeen}
-              onChange={(event) => setShowLastSeen(event.target.checked)}
-            />
-            <span className='profile-switch-track' aria-hidden='true' />
-            <span className='profile-switch-text'>
-              <strong>Mostrar meu “visto por último”</strong>
-              <small>
-                {showLastSeen
-                  ? 'Seus contatos veem o horário em que você saiu.'
-                  : 'Seus contatos só veem se você está online agora.'}
-              </small>
-            </span>
-          </label>
+          <Switch
+            checked={showLastSeen}
+            onChange={setShowLastSeen}
+            label='Mostrar meu “visto por último”'
+            hint={
+              showLastSeen
+                ? 'Seus contatos veem o horário em que você saiu.'
+                : 'Seus contatos só veem se você está online agora.'
+            }
+          />
 
           {/* Vale nos dois sentidos, como no WhatsApp: sem a reciprocidade o
               ajuste seria uma forma de ver sem ser visto. */}
-          <label className='profile-switch'>
-            <input
-              type='checkbox'
-              checked={showReceipts}
-              onChange={(event) => setShowReceipts(event.target.checked)}
-            />
-            <span className='profile-switch-track' aria-hidden='true' />
-            <span className='profile-switch-text'>
-              <strong>Enviar confirmação de leitura</strong>
-              <small>
-                {showReceipts
-                  ? 'O ✓✓ aparece para quem te escreve — e para você.'
-                  : 'Ninguém vê quando você lê. Você também deixa de ver o ✓✓ dos outros.'}
-              </small>
-            </span>
-          </label>
+          <Switch
+            checked={showReceipts}
+            onChange={setShowReceipts}
+            label='Enviar confirmação de leitura'
+            hint={
+              showReceipts
+                ? 'O ✓✓ aparece para quem te escreve — e para você.'
+                : 'Ninguém vê quando você lê. Você também deixa de ver o ✓✓ dos outros.'
+            }
+          />
         </section>
 
         <section className='profile-section'>

@@ -24,6 +24,7 @@ import Avatar from 'components/Avatar';
 import AvatarPicker from 'components/AvatarPicker';
 import ChatGallery from 'components/ChatGallery';
 import ConfirmDialog from 'components/ConfirmDialog';
+import Switch from 'components/Switch';
 import useEscape from 'hooks/escape';
 import useSession from 'hooks/session';
 import useBlocks from 'hooks/blocks';
@@ -668,22 +669,16 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
             </button>
           )}
 
-          <label className='profile-switch'>
-            <input
-              type='checkbox'
-              checked={chat.onlyAdminsSend}
-              onChange={(event) => void toggleOnlyAdmins(event.target.checked)}
-            />
-            <span className='profile-switch-track' aria-hidden='true' />
-            <span className='profile-switch-text'>
-              <strong>Só administradores enviam</strong>
-              <small>
-                {chat.onlyAdminsSend
-                  ? 'Os demais continuam lendo tudo, mas não conseguem escrever.'
-                  : 'Qualquer participante pode escrever no grupo.'}
-              </small>
-            </span>
-          </label>
+          <Switch
+            checked={chat.onlyAdminsSend}
+            onChange={(next) => void toggleOnlyAdmins(next)}
+            label='Só administradores enviam'
+            hint={
+              chat.onlyAdminsSend
+                ? 'Os demais continuam lendo tudo, mas não conseguem escrever.'
+                : 'Qualquer participante pode escrever no grupo.'
+            }
+          />
         </section>
       )}
 

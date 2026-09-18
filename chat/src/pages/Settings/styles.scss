@@ -265,75 +265,14 @@
     }
   }
 
-  /* Interruptor: um checkbox de verdade por baixo, pintado como switch. */
-  &-switch {
-    align-items: center;
-    cursor: pointer;
-    display: flex;
-    gap: 12px;
-
-    input {
-      // Fora da tela, mas ainda focável pelo teclado.
-      height: 0;
-      opacity: 0;
-      position: absolute;
-      width: 0;
-    }
-
-    &-track {
-      background-color: var(--surface-2, #{$cinza-componentes});
-      border: 1px solid var(--line, #{$cinza-chat-1});
-      border-radius: 999px;
-      flex-shrink: 0;
-      height: 22px;
-      position: relative;
-      transition: background-color 0.15s ease, border-color 0.15s ease;
-      width: 40px;
-
-      &::after {
-        background-color: var(--ink, #{$cinza-claro-texto});
-        border-radius: 50%;
-        content: '';
-        height: 16px;
-        left: 2px;
-        position: absolute;
-        top: 2px;
-        transition: transform 0.15s ease, background-color 0.15s ease;
-        width: 16px;
-      }
-    }
-
-    input:checked + &-track {
-      background-color: var(--accent, #{$laranja});
-      border-color: var(--accent, #{$laranja});
-
-      &::after {
-        background-color: var(--accent-ink, #{$cinza-escuro-texto});
-        transform: translateX(18px);
-      }
-    }
-
-    input:focus-visible + &-track {
-      outline: 2px solid var(--accent, #{$laranja});
-      outline-offset: 2px;
-    }
-
-    &-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-
-      strong {
-        font-size: 14px;
-        font-weight: 500;
-      }
-
-      small {
-        font-size: 12px;
-        opacity: 0.65;
-      }
-    }
-  }
+  /*
+   * O interruptor saiu daqui e virou `components/Switch`.
+   *
+   * Ele era desenhado neste arquivo e usado tambem pelo painel de detalhes do
+   * grupo, que nao o declarava. Como esta pagina e carregada sob demanda, o
+   * painel aparecia com o checkbox nativo e o texto todo numa linha so para
+   * quem ainda nao tivesse visitado Ajustes — e certo para quem ja tivesse.
+   */
 
   &-disclosure {
     align-items: center;
