@@ -15,6 +15,19 @@
   padding: $space-6;
   width: 100%;
 
+  /*
+   * A pagina nao tinha regra por largura nenhuma: 24px de cada lado numa tela
+   * de 360px, e os cartoes ficavam com 312px.
+   */
+  @media (max-width: 768px) {
+    gap: $space-4;
+    padding: $space-5 $space-4;
+  }
+
+  @media (max-width: 420px) {
+    padding: $space-4 $space-3;
+  }
+
   &-head {
     h1 {
       font-size: 20px;
@@ -27,6 +40,96 @@
       margin: 4px 0 0;
       opacity: 0.65;
     }
+  }
+
+  /* Busca e filtro por conversa, lado a lado enquanto couberem. */
+  &-filters {
+    display: flex;
+    gap: $space-3;
+
+    @media (max-width: 560px) {
+      flex-direction: column;
+    }
+  }
+
+  &-search {
+    align-items: center;
+    background-color: var(--surface-2, #{$cinza-componentes});
+    border: 1px solid var(--line, #{$cinza-chat-1});
+    border-radius: $radius-md;
+    display: flex;
+    flex: 1;
+    gap: $space-2;
+    min-width: 0;
+    padding: 0 $space-3;
+
+    &:focus-within {
+      border-color: var(--accent, #{$laranja});
+    }
+
+    &-icon {
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    input {
+      background: none;
+      border: none;
+      color: inherit;
+      font-family: inherit;
+      font-size: 14px;
+      min-width: 0;
+      outline: none;
+      padding: $space-3 0;
+      width: 100%;
+    }
+  }
+
+  &-chat {
+    background-color: var(--surface-2, #{$cinza-componentes});
+    border: 1px solid var(--line, #{$cinza-chat-1});
+    border-radius: $radius-md;
+    color: inherit;
+    font-family: inherit;
+    font-size: 14px;
+    // Sem teto, um nome de grupo longo empurra a busca para fora da linha.
+    max-width: 220px;
+    padding: $space-3;
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: var(--focus-offset);
+    }
+
+    @media (max-width: 560px) {
+      max-width: none;
+    }
+  }
+}
+
+/*
+ * Um dia por bloco, com o rotulo grudado no topo enquanto o bloco passa.
+ *
+ * A lista era um muro de cartoes sem ancora nenhuma: cada um trazia a sua data
+ * em 11px e nada dizia onde hoje terminava e o mes passado comecava.
+ */
+.saved-messages-day {
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+
+  &-label {
+    background-color: var(--surface, #{$cinza-sidebars});
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin: 0;
+    opacity: 0.6;
+    padding: $space-2 0;
+    position: sticky;
+    text-transform: uppercase;
+    top: 0;
+    z-index: 1;
   }
 }
 

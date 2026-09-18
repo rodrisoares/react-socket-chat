@@ -1,5 +1,6 @@
 import './styles.scss';
 import { lazy, Suspense, useId, useState } from 'react';
+import { Navigate, NavLink, useParams } from 'react-router-dom';
 import { FiBell, FiBellOff, FiChevronRight, FiEdit2, FiMoon, FiSlash, FiSun } from 'react-icons/fi';
 
 import Avatar from 'components/Avatar';
@@ -21,6 +22,32 @@ const AvatarPicker = lazy(() => import('components/AvatarPicker'));
 const BIO_MAX = 200;
 
 /**
+ * As sete seções, cada uma um endereço.
+ *
+ * Eram sete numa rolagem só, sem nada que dissesse o que havia mais abaixo:
+ * "Dispositivos" e "Bloqueados" ficavam a dois giros de roda do topo e não
+ * apareciam em lugar nenhum antes disso. Em endereço próprio elas viram
+ * destino — o link é compartilhável, o botão voltar volta uma seção, e o F5
+ * cai onde estava.
+ *
+ * O `hint` substitui a linha única que a página tinha no cabeçalho: com uma
+ * seção por vez, um resumo das sete não descreve o que está na tela.
+ */
+const SECTIONS = [
+  { id: 'perfil', label: 'Perfil', hint: 'Como você aparece para quem conversa com você.' },
+  { id: 'privacidade', label: 'Privacidade', hint: 'O que os seus contatos veem sobre você.' },
+  { id: 'notificacoes', label: 'Notificações', hint: 'Avisos deste navegador, não da conta.' },
+  { id: 'aparencia', label: 'Aparência', hint: 'O tema vale só neste aparelho.' },
+  { id: 'seguranca', label: 'Segurança', hint: 'A senha da conta.' },
+  { id: 'dispositivos', label: 'Dispositivos', hint: 'Onde a sua conta está aberta agora.' },
+  { id: 'bloqueados', label: 'Bloqueados', hint: 'Quem não alcança você.' },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]['id'];
+
+const DEFAULT_SECTION: SectionId = 'perfil';
+
+/**
  * Configurações.
  *
  * Era um modal chamado "Meu perfil" que foi acumulando perfil, privacidade,
@@ -34,6 +61,11 @@ const BIO_MAX = 200;
  * isso que a barra dele só aparece quando há o que salvar.
  */
 export default function Settings() {
+  // A seção vem do endereço. Quem não reconhece — `/settings` puro ou um link
+  // velho — cai no Perfil pelo `Navigate` lá embaixo, depois dos hooks.
+  const { section: raw } = useParams<{ section?: string }>();
+  const current = SECTIONS.find((item) => item.id === raw);
+
   const { user, patchUser } = useSession();
   const { theme, toggle: toggleTheme } = useTheme();
   const { enabled: notificationsOn, setEnabled, permission, request } = useNotifications();
@@ -164,241 +196,281 @@ export default function Settings() {
     }
   }
 
+  /*
+   * `/settings` e `/settings/qualquercoisa` viram `/settings/perfil`.
+   *
+   * Depois dos hooks de propósito: sair antes deles mudaria a quantidade de
+   * hooks entre um render e outro. `replace` para o botão voltar não devolver
+   * a pessoa ao endereço de onde ela acabou de ser tirada.
+   */
+  if (!current) return <Navigate to={`/settings/${DEFAULT_SECTION}`} replace />;
+
+  const section: SectionId = current.id;
+
   return (
     <div className='settings'>
-      <div className='settings-scroll'>
-        <header className='settings-head'>
-          <h1>Configurações</h1>
-          <p>Seu perfil, sua privacidade e como este aparelho se comporta.</p>
-        </header>
+      <div className='settings-body'>
+        {/*
+          Links de verdade, e não botões com estado interno: é o que dá endereço
+          a cada seção — o link é compartilhável, o voltar volta uma seção e o
+          F5 cai onde estava. O `NavLink` cuida do "você está aqui" sozinho.
+        */}
+        <nav className='settings-nav' aria-label='Seções das configurações'>
+          <span className='settings-nav-title'>Configurações</span>
+          {SECTIONS.map((item) => (
+            <NavLink
+              key={item.id}
+              to={`/settings/${item.id}`}
+              className={({ isActive }) =>
+                `settings-nav-item${isActive ? ' is-active' : ''}`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
 
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Perfil</h2>
+        <div className='settings-scroll'>
+          <header className='settings-head'>
+            <h1>{current.label}</h1>
+            <p>{current.hint}</p>
+          </header>
 
-          <div className='profile-identity'>
-            <div className='profile-identity-avatar'>
-              <Avatar image={preview || undefined} isLogged />
-              <button
-                type='button'
-                className='profile-identity-edit'
-                onClick={() => setIsPickingAvatar(true)}
-                aria-label={preview ? 'Trocar avatar' : 'Escolher avatar'}
-                title={preview ? 'Trocar avatar' : 'Escolher avatar'}
-              >
-                <FiEdit2 size={14} />
-              </button>
-            </div>
-            {/* Segue o campo enquanto você digita: é um preview, não um rótulo. */}
-            <strong className='profile-identity-name'>{name || 'Sem nome'}</strong>
-            <span className='profile-identity-email'>{email}</span>
-          </div>
-
-          <Input label='Nome' value={name} onChange={setName} />
-
-          <div className='field'>
-            <div className='profile-bio-label'>
-              <label className='field-label' htmlFor={bioId}>
-                Bio
-              </label>
-              <span className='field-hint'>
-                {bio.length}/{BIO_MAX}
-              </span>
-            </div>
-            <div className='field-box'>
-              <textarea
-                id={bioId}
-                className='field-input profile-bio-input'
-                rows={3}
-                maxLength={BIO_MAX}
-                placeholder='Conte algo sobre você'
-                value={bio}
-                onChange={(event) => setBio(event.target.value)}
-              />
-            </div>
-          </div>
-
-          {/*
-            O recado fica com os campos digitados, ao lado da bio. A *escolha*
-            do status continua só no menu do avatar: duplicá-la aqui seria duas
-            portas para a mesma sala, que foi o motivo de aquele menu encolher.
-          */}
-          <div className='field'>
-            <div className='profile-bio-label'>
-              <label className='field-label' htmlFor={statusTextId}>
-                Recado de status
-              </label>
-              <span className='field-hint'>
-                {statusText.length}/{STATUS_TEXT_MAX_LENGTH}
-              </span>
-            </div>
-            <div className='field-box'>
-              <input
-                id={statusTextId}
-                className='field-input'
-                maxLength={STATUS_TEXT_MAX_LENGTH}
-                placeholder='Em reunião até as 15h'
-                value={statusText}
-                onChange={(event) => setStatusText(event.target.value)}
-              />
-            </div>
-            <p className='profile-hint'>
-              Aparece ao lado do seu status para quem conversa com você. Escolher
-              entre Disponível, Ocupado, Ausente e Não perturbe continua no menu
-              do seu avatar.
-            </p>
-          </div>
-        </section>
-
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Privacidade</h2>
-
-          {/* O interruptor vale para os dois lados no servidor: desligado, o
-              horário deixa de sair daqui — não é só a sua tela que muda. */}
-          <Switch
-            checked={showLastSeen}
-            onChange={setShowLastSeen}
-            label='Mostrar meu “visto por último”'
-            hint={
-              showLastSeen
-                ? 'Seus contatos veem o horário em que você saiu.'
-                : 'Seus contatos só veem se você está online agora.'
-            }
-          />
-
-          {/* Vale nos dois sentidos, como no WhatsApp: sem a reciprocidade o
-              ajuste seria uma forma de ver sem ser visto. */}
-          <Switch
-            checked={showReceipts}
-            onChange={setShowReceipts}
-            label='Enviar confirmação de leitura'
-            hint={
-              showReceipts
-                ? 'O ✓✓ aparece para quem te escreve — e para você.'
-                : 'Ninguém vê quando você lê. Você também deixa de ver o ✓✓ dos outros.'
-            }
-          />
-        </section>
-
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Notificações</h2>
-
-          {/* Vale no clique: é preferência deste navegador, não do servidor. */}
-          <button
-            type='button'
-            className='settings-row'
-            aria-pressed={notificationsOn}
-            onClick={toggleNotifications}
-          >
-            <span className='settings-row-icon'>
-              {notificationsOn ? <FiBell size={18} /> : <FiBellOff size={18} />}
-            </span>
-            <span className='settings-row-text'>
-              <strong>Avisos de mensagem nova</strong>
-              <small>
-                {!notificationsOn
-                  ? 'Desligados: sem som e sem avisos do navegador.'
-                  : permission === 'granted'
-                    ? 'Ligados: som e aviso do navegador quando a aba está atrás.'
-                    : permission === 'default'
-                      ? 'Falta a permissão do navegador. Clique para pedir.'
-                      : 'O navegador bloqueou os avisos deste site; o som continua.'}
-              </small>
-            </span>
-          </button>
-        </section>
-
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Aparência</h2>
-
-          <button type='button' className='settings-row' onClick={toggleTheme}>
-            <span className='settings-row-icon'>
-              {theme === 'dark' ? <FiMoon size={18} /> : <FiSun size={18} />}
-            </span>
-            <span className='settings-row-text'>
-              <strong>Tema {theme === 'dark' ? 'escuro' : 'claro'}</strong>
-              <small>Clique para usar o tema {theme === 'dark' ? 'claro' : 'escuro'}.</small>
-            </span>
-          </button>
-        </section>
-
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Segurança</h2>
-
-          <button
-            type='button'
-            className={`profile-disclosure${isChangingPassword ? ' is-open' : ''}`}
-            aria-expanded={isChangingPassword}
-            onClick={togglePassword}
-          >
-            <FiChevronRight size={16} className='profile-disclosure-icon' />
-            Alterar senha
-          </button>
-
-          {isChangingPassword && (
-            <div className='profile-password'>
-              <Input
-                label='Senha atual'
-                type='password'
-                value={currentPassword}
-                onChange={setCurrentPassword}
-              />
-              <div>
-                <Input
-                  label='Nova senha'
-                  type='password'
-                  autoComplete='new-password'
-                  value={newPassword}
-                  onChange={setNewPassword}
-                />
-                {newPassword && <PasswordChecklist value={newPassword} />}
-              </div>
-              <p className='profile-hint'>
-                Ao trocar a senha, as sessões nos outros dispositivos são encerradas.
-              </p>
-            </div>
-          )}
-        </section>
-
-        <SessionList />
-
-        <section className='profile-section'>
-          <h2 className='profile-section-title'>Bloqueados</h2>
-
-          {blocked.length === 0 ? (
-            <p className='profile-hint'>
-              Ninguém bloqueado. Bloquear fica nos detalhes do contato, dentro da
-              conversa.
-            </p>
-          ) : (
-            <ul className='settings-blocked'>
-              {blocked.map((contact) => (
-                <li key={contact.id}>
-                  <Avatar image={contact.image} isLogged={false} />
-                  <span className='settings-blocked-name'>{contact.name}</span>
+          {section === 'perfil' && (
+            <section className='profile-section'>
+              <div className='profile-identity'>
+                <div className='profile-identity-avatar'>
+                  <Avatar image={preview || undefined} isLogged />
                   <button
                     type='button'
-                    className='settings-blocked-undo'
-                    onClick={() => void unblock(contact)}
+                    className='profile-identity-edit'
+                    onClick={() => setIsPickingAvatar(true)}
+                    aria-label={preview ? 'Trocar avatar' : 'Escolher avatar'}
+                    title={preview ? 'Trocar avatar' : 'Escolher avatar'}
                   >
-                    <FiSlash size={14} /> Desbloquear
+                    <FiEdit2 size={14} />
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                </div>
+                {/* Segue o campo enquanto você digita: é um preview, não um rótulo. */}
+                <strong className='profile-identity-name'>{name || 'Sem nome'}</strong>
+                <span className='profile-identity-email'>{email}</span>
+              </div>
 
-        {feedback && (
-          <p className='profile-message profile-message--ok' role='status'>
-            {feedback}
-          </p>
-        )}
+              <Input label='Nome' value={name} onChange={setName} />
+
+              <div className='field'>
+                <div className='profile-bio-label'>
+                  <label className='field-label' htmlFor={bioId}>
+                    Bio
+                  </label>
+                  <span className='field-hint'>
+                    {bio.length}/{BIO_MAX}
+                  </span>
+                </div>
+                <div className='field-box'>
+                  <textarea
+                    id={bioId}
+                    className='field-input profile-bio-input'
+                    rows={3}
+                    maxLength={BIO_MAX}
+                    placeholder='Conte algo sobre você'
+                    value={bio}
+                    onChange={(event) => setBio(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/*
+                O recado fica com os campos digitados, ao lado da bio. A *escolha*
+                do status continua só no menu do avatar: duplicá-la aqui seria duas
+                portas para a mesma sala, que foi o motivo de aquele menu encolher.
+              */}
+              <div className='field'>
+                <div className='profile-bio-label'>
+                  <label className='field-label' htmlFor={statusTextId}>
+                    Recado de status
+                  </label>
+                  <span className='field-hint'>
+                    {statusText.length}/{STATUS_TEXT_MAX_LENGTH}
+                  </span>
+                </div>
+                <div className='field-box'>
+                  <input
+                    id={statusTextId}
+                    className='field-input'
+                    maxLength={STATUS_TEXT_MAX_LENGTH}
+                    placeholder='Em reunião até as 15h'
+                    value={statusText}
+                    onChange={(event) => setStatusText(event.target.value)}
+                  />
+                </div>
+                <p className='profile-hint'>
+                  Aparece ao lado do seu status para quem conversa com você. Escolher
+                  entre Disponível, Ocupado, Ausente e Não perturbe continua no menu
+                  do seu avatar.
+                </p>
+              </div>
+            </section>
+          )}
+
+          {section === 'privacidade' && (
+            <section className='profile-section'>
+              {/* O interruptor vale para os dois lados no servidor: desligado, o
+                  horário deixa de sair daqui — não é só a sua tela que muda. */}
+              <Switch
+                checked={showLastSeen}
+                onChange={setShowLastSeen}
+                label='Mostrar meu “visto por último”'
+                hint={
+                  showLastSeen
+                    ? 'Seus contatos veem o horário em que você saiu.'
+                    : 'Seus contatos só veem se você está online agora.'
+                }
+              />
+
+              {/* Vale nos dois sentidos, como no WhatsApp: sem a reciprocidade o
+                  ajuste seria uma forma de ver sem ser visto. */}
+              <Switch
+                checked={showReceipts}
+                onChange={setShowReceipts}
+                label='Enviar confirmação de leitura'
+                hint={
+                  showReceipts
+                    ? 'O ✓✓ aparece para quem te escreve — e para você.'
+                    : 'Ninguém vê quando você lê. Você também deixa de ver o ✓✓ dos outros.'
+                }
+              />
+            </section>
+          )}
+
+          {section === 'notificacoes' && (
+            <section className='profile-section'>
+              {/* Vale no clique: é preferência deste navegador, não do servidor. */}
+              <button
+                type='button'
+                className='settings-row'
+                aria-pressed={notificationsOn}
+                onClick={toggleNotifications}
+              >
+                <span className='settings-row-icon'>
+                  {notificationsOn ? <FiBell size={18} /> : <FiBellOff size={18} />}
+                </span>
+                <span className='settings-row-text'>
+                  <strong>Avisos de mensagem nova</strong>
+                  <small>
+                    {!notificationsOn
+                      ? 'Desligados: sem som e sem avisos do navegador.'
+                      : permission === 'granted'
+                        ? 'Ligados: som e aviso do navegador quando a aba está atrás.'
+                        : permission === 'default'
+                          ? 'Falta a permissão do navegador. Clique para pedir.'
+                          : 'O navegador bloqueou os avisos deste site; o som continua.'}
+                  </small>
+                </span>
+              </button>
+            </section>
+          )}
+
+          {section === 'aparencia' && (
+            <section className='profile-section'>
+              <button type='button' className='settings-row' onClick={toggleTheme}>
+                <span className='settings-row-icon'>
+                  {theme === 'dark' ? <FiMoon size={18} /> : <FiSun size={18} />}
+                </span>
+                <span className='settings-row-text'>
+                  <strong>Tema {theme === 'dark' ? 'escuro' : 'claro'}</strong>
+                  <small>Clique para usar o tema {theme === 'dark' ? 'claro' : 'escuro'}.</small>
+                </span>
+              </button>
+            </section>
+          )}
+
+          {section === 'seguranca' && (
+            <section className='profile-section'>
+              <button
+                type='button'
+                className={`profile-disclosure${isChangingPassword ? ' is-open' : ''}`}
+                aria-expanded={isChangingPassword}
+                onClick={togglePassword}
+              >
+                <FiChevronRight size={16} className='profile-disclosure-icon' />
+                Alterar senha
+              </button>
+
+              {isChangingPassword && (
+                <div className='profile-password'>
+                  <Input
+                    label='Senha atual'
+                    type='password'
+                    value={currentPassword}
+                    onChange={setCurrentPassword}
+                  />
+                  <div>
+                    <Input
+                      label='Nova senha'
+                      type='password'
+                      autoComplete='new-password'
+                      value={newPassword}
+                      onChange={setNewPassword}
+                    />
+                    {newPassword && <PasswordChecklist value={newPassword} />}
+                  </div>
+                  <p className='profile-hint'>
+                    Ao trocar a senha, as sessões nos outros dispositivos são encerradas.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {section === 'dispositivos' && (
+            <SessionList />
+          )}
+
+          {section === 'bloqueados' && (
+            <section className='profile-section'>
+              {blocked.length === 0 ? (
+                <p className='profile-hint'>
+                  Ninguém bloqueado. Bloquear fica nos detalhes do contato, dentro da
+                  conversa.
+                </p>
+              ) : (
+                <ul className='settings-blocked'>
+                  {blocked.map((contact) => (
+                    <li key={contact.id}>
+                      <Avatar image={contact.image} isLogged={false} />
+                      <span className='settings-blocked-name'>{contact.name}</span>
+                      <button
+                        type='button'
+                        className='settings-blocked-undo'
+                        onClick={() => void unblock(contact)}
+                      >
+                        <FiSlash size={14} /> Desbloquear
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {feedback && (
+            <p className='profile-message profile-message--ok' role='status'>
+              {feedback}
+            </p>
+          )}
+        </div>
       </div>
 
       {/*
-        Barra fixa, e só quando há o que salvar. Numa página com sete seções um
-        botão solto no fim não diz a que se refere — e três das seções nem
-        passam por ele.
+        Fora do `settings-body`, e por isso fora das seções: a alteração
+        pendente é da página, e não da aba onde ela foi feita. Alguém que muda o
+        nome e vai até Aparência continua vendo que tem algo por salvar — e o
+        Descartar continua alcançando aquilo.
+
+        Só aparece havendo o que salvar, porque quatro das sete seções nem
+        passam por ele: aparência e notificações valem no clique, dispositivos e
+        bloqueados são ações imediatas.
       */}
       {(hasChanges || error) && (
         <div className='settings-save' role='region' aria-label='Alterações não salvas'>

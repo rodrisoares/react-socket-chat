@@ -14,10 +14,100 @@
   overflow: hidden;
   position: relative;
 
+  /*
+   * As abas a esquerda e o painel a direita.
+   *
+   * `min-height: 0` porque o filho e quem rola: sem isso o item flex cresce
+   * ate o tamanho do conteudo e quem rola passa a ser a pagina inteira, com a
+   * barra de salvar junto.
+   */
+  &-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+
+    // Abaixo de 768px nao cabem coluna de abas e painel lado a lado: as abas
+    // viram uma fileira horizontal acima do conteudo.
+    @media (max-width: 768px) {
+      flex-direction: column;
+    }
+  }
+
+  /* As sete secoes, cada uma um link. */
+  &-nav {
+    border-right: 1px solid var(--line, #{$cinza-chat-1});
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 2px;
+    overflow-y: auto;
+    padding: $space-6 $space-3;
+    width: 190px;
+
+    &-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      opacity: 0.6;
+      padding: 0 $space-3 $space-3;
+      text-transform: uppercase;
+    }
+
+    &-item {
+      border-radius: $radius-md;
+      color: inherit;
+      font-size: 14px;
+      padding: $space-2 $space-3;
+      text-decoration: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+
+      &:hover {
+        background-color: var(--surface-2, #{$cinza-componentes});
+      }
+
+      &:focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: var(--focus-offset);
+      }
+
+      &.is-active {
+        background-color: var(--surface-2, #{$cinza-componentes});
+        color: var(--accent, #{$laranja});
+        font-weight: 600;
+      }
+    }
+
+    /*
+     * Fileira que rola de lado no celular. `flex-shrink: 0` nos itens para os
+     * nomes longos nao serem espremidos ate quebrar em duas linhas, e o titulo
+     * sai — a fileira inteira ja diz onde voce esta.
+     */
+    @media (max-width: 768px) {
+      border-bottom: 1px solid var(--line, #{$cinza-chat-1});
+      border-right: none;
+      flex-direction: row;
+      gap: $space-1;
+      overflow-x: auto;
+      padding: $space-3 $space-4;
+      scrollbar-width: none;
+      width: 100%;
+
+      &-title {
+        display: none;
+      }
+
+      &-item {
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+    }
+  }
+
   // A rolagem e da coluna, e nao da pagina: a barra de salvar fica fixa no
   // rodape e nao pode rolar junto com o conteudo.
   &-scroll {
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: $space-6;
     margin-inline: auto;
@@ -25,6 +115,19 @@
     overflow-y: auto;
     padding: $space-6;
     width: 100%;
+
+    /*
+     * A tela nao tinha regra por largura nenhuma: 24px de cada lado numa tela
+     * de 360px comem 13% dela, e o que sobra para os campos sao 312px.
+     */
+    @media (max-width: 768px) {
+      gap: $space-5;
+      padding: $space-5 $space-4;
+    }
+
+    @media (max-width: 420px) {
+      padding: $space-4 $space-3;
+    }
   }
 
   &-head {
@@ -136,14 +239,28 @@
     background-color: var(--surface, #{$cinza-sidebars});
     border-top: 1px solid var(--line, #{$cinza-chat-1});
     display: flex;
+    // Irma da rolagem, e nao `position: fixed`: e o que garante que ela empurra
+    // o conteudo em vez de cobrir o ultimo campo na tela estreita.
+    flex-shrink: 0;
     flex-wrap: wrap;
     gap: $space-3;
     justify-content: space-between;
     padding: $space-4 $space-6;
 
+    @media (max-width: 768px) {
+      padding: $space-3 $space-4;
+    }
+
     &-hint {
       font-size: 13px;
       opacity: 0.7;
+
+      // Em 360px o aviso e os dois botoes nao cabem na mesma linha: com o
+      // `flex-wrap` acima, o aviso sobe e os botoes ficam embaixo.
+      @media (max-width: 420px) {
+        font-size: 12px;
+        width: 100%;
+      }
     }
 
     &-actions {

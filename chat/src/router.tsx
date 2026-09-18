@@ -68,7 +68,14 @@ const Router = () => (
           */}
           <Route path='c/:chatId' element={<Home />} />
           <Route path='saved' element={<Saved />} />
+          {/*
+            Cada seção de Configurações é um endereço: `/settings/seguranca`
+            abre direto na senha. As duas rotas, e não uma com parâmetro
+            opcional, porque `/settings` puro continua valendo — a própria
+            página o redireciona para a primeira seção.
+          */}
           <Route path='settings' element={<Settings />} />
+          <Route path='settings/:section' element={<Settings />} />
           <Route path='*' element={<Navigate to='/' replace />} />
         </Route>
       </Routes>
