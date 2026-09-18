@@ -114,9 +114,14 @@ export default function Layout() {
           </span>
 
           {/*
-            Três destinos, e não um item só que não levava a lugar nenhum. O
-            `NavLink` cuida do "você está aqui" sozinho — o `is-active` do rail
-            já existia no CSS, escrito para um item que nunca mudava de estado.
+            Os destinos de conversa, e não um item só que não levava a lugar
+            nenhum. O `NavLink` cuida do "você está aqui" sozinho — o
+            `is-active` do rail já existia no CSS, escrito para um item que
+            nunca mudava de estado.
+
+            Ajustes saiu daqui e desceu para o pé do rail: Chat e Salvas são
+            onde se conversa, e Configurações é sobre a conta — o mesmo canto
+            em que o avatar já estava.
 
             Arquivadas fica de fora de propósito: ela já tem uma linha própria
             acima da lista, e trazê-la para cá criaria duas portas para a mesma
@@ -151,32 +156,42 @@ export default function Layout() {
               </span>
               <span>Salvas</span>
             </NavLink>
-
-            <NavLink
-              to='/settings'
-              className={({ isActive }) => `navbar-item${isActive ? ' is-active' : ''}`}
-            >
-              <span className='navbar-item-icon'>
-                <FiSettings size={20} />
-              </span>
-              <span>Ajustes</span>
-            </NavLink>
           </div>
         </div>
 
         {/*
+          O pé do rail, onde mora o que é do dono da tela.
+
+          Ajustes é um `navbar-item` igual aos de cima — mesma pílula, mesmo
+          "você está aqui" — só que ancorado embaixo pelo `space-between` do
+          rail. Ele continua sendo um destino, e não um item de menu: a página
+          tem sete seções com endereço próprio, e esconder isso atrás de um
+          popover seria devolvê-la ao modal de onde ela saiu.
+
           O menu do avatar encolheu: perfil, salvas, tema e notificações viraram
           destinos ou seções de Configurações. Sobra o que é do próprio avatar —
           o status — e o sair.
         */}
-        <UserMenu
-          {...(name !== undefined ? { name } : {})}
-          {...(email !== undefined ? { email } : {})}
-          image={image}
-          status={status ?? 'AVAILABLE'}
-          onChangeStatus={changeStatus}
-          onLogout={() => setIsLeaving(true)}
-        />
+        <div className='navbar-bottom'>
+          <NavLink
+            to='/settings'
+            className={({ isActive }) => `navbar-item${isActive ? ' is-active' : ''}`}
+          >
+            <span className='navbar-item-icon'>
+              <FiSettings size={20} />
+            </span>
+            <span>Ajustes</span>
+          </NavLink>
+
+          <UserMenu
+            {...(name !== undefined ? { name } : {})}
+            {...(email !== undefined ? { email } : {})}
+            image={image}
+            status={status ?? 'AVAILABLE'}
+            onChangeStatus={changeStatus}
+            onLogout={() => setIsLeaving(true)}
+          />
+        </div>
       </nav>
       {/* `tabIndex={-1}` para o salto poder pousar aqui: sem ele o foco fica
           no `<a>` e a tecla seguinte volta para o começo do rail. */}

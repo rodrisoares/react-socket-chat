@@ -70,15 +70,39 @@
     width: 100%;
   }
 
+  // `width: 100%` nos dois grupos para as pilulas de Chat, Salvas e Ajustes
+  // terem a mesma largura: sem isto cada grupo se encolhe ate o proprio texto,
+  // e o item de baixo sairia mais estreito que os de cima.
   &-top {
     align-items: center;
     display: flex;
     flex-direction: column;
     gap: 18px;
+    width: 100%;
 
     @media (max-width: 768px) {
       flex-direction: row;
       gap: 14px;
+      width: auto;
+    }
+  }
+
+  // O pe do rail: Ajustes e a conta. Quem os empurra para ca e o
+  // `space-between` do rail — no mobile, onde ele vira linha, o mesmo par vai
+  // para a ponta direita da barra, que e o canto equivalente.
+  &-bottom {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+
+    // Gap menor que os 14px do topo: aqui a barra do mobile ja esta no limite,
+    // e Ajustes chegou a ela vindo de uma vizinhanca de 4px.
+    @media (max-width: 768px) {
+      flex-direction: row;
+      gap: 8px;
+      width: auto;
     }
   }
 
@@ -92,7 +116,8 @@
     }
   }
 
-  // Os destinos do rail, empilhados no desktop e em linha no mobile.
+  // Os destinos de conversa, empilhados no desktop e em linha no mobile.
+  // Ajustes nao esta aqui: ele mora no `-bottom`, junto do avatar.
   &-nav {
     align-items: center;
     display: flex;
@@ -107,8 +132,9 @@
     }
   }
 
-  // Tres itens de navegacao, cada um uma rota. Os estados ja estavam escritos
-  // aqui desde quando havia um item so — agora eles servem para algo.
+  // Tres itens de navegacao, cada um uma rota: dois no topo e Ajustes no pe.
+  // Os estados ja estavam escritos aqui desde quando havia um item so — agora
+  // eles servem para algo.
   &-item {
     text-decoration: none;
 
