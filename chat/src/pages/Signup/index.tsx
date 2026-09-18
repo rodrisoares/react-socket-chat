@@ -7,7 +7,6 @@ import Form from 'components/Form';
 import Input from 'components/Input';
 import PasswordChecklist from 'components/PasswordChecklist';
 import { useSignIn } from 'hooks/session';
-import { avatarUrlFor } from 'utils/avatar';
 import { readApiErrors } from 'utils/apiErrors';
 import { isPasswordValid, type LoginResponse } from '@react-chat/shared';
 
@@ -31,11 +30,16 @@ export default function Signup() {
     try {
       // O cadastro já devolve a sessão: mandar para o login logo depois de a
       // pessoa digitar a senha duas vezes era pedir a terceira sem motivo.
+      //
+      // Sem `image`: a conta nasce sem foto e o `Avatar` cai no ícone genérico
+      // até a pessoa escolher uma em Configurações > Perfil. O cadastro
+      // derivava uma cara do DiceBear a partir do e-mail — uma foto que
+      // ninguém pediu, que chegava parecendo escolha de outra pessoa, e que
+      // não tinha como ser recusada sem antes descobrir onde se troca.
       const response = await fetch.post<LoginResponse>('/api/auth/register', {
         name,
         email,
         password,
-        image: avatarUrlFor(email),
       });
 
       signIn(response.data);
