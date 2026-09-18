@@ -80,9 +80,17 @@ export const exportData: RequestHandler = async (req, res) => {
   res.send(JSON.stringify(data, null, 2));
 };
 
+/**
+ * A lista de conversas — a inteira, ou a filtrada.
+ *
+ * `?q=` filtra por nome **e** por conteúdo, no servidor. Era a tela que casava
+ * o nome, sobre as páginas já carregadas, e por isso ela precisava puxar a
+ * lista toda ao primeiro caractere digitado.
+ */
 export const listChats: RequestHandler = async (req, res) => {
   const rawLimit = req.query['limit'];
   const rawCursor = req.query['cursor'];
+  const rawTerm = req.query['q'];
 
   const limit = typeof rawLimit === 'string' ? Number(rawLimit) : undefined;
   if (limit !== undefined && !Number.isFinite(limit)) {
@@ -93,15 +101,9 @@ export const listChats: RequestHandler = async (req, res) => {
     await meService.listChats(currentUserId(req), {
       ...(limit !== undefined ? { limit } : {}),
       ...(typeof rawCursor === 'string' && rawCursor ? { cursor: rawCursor } : {}),
+      ...(typeof rawTerm === 'string' && rawTerm ? { term: rawTerm } : {}),
     }),
   );
-};
-
-export const search: RequestHandler = async (req, res) => {
-  const raw = req.query['q'];
-  const term = typeof raw === 'string' ? raw.trim() : '';
-
-  res.json({ results: await meService.search(currentUserId(req), term) });
 };
 
 export const listBlocks: RequestHandler = async (req, res) => {

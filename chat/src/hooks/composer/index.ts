@@ -5,6 +5,7 @@ import { UPLOAD_ACCEPT, UPLOAD_MAX_MB, type Chat, type Message } from '@react-ch
 import fetch from 'config/fetchInstance';
 import { appendMessage, removeMessage, replaceMessage } from 'hooks/messageHistory/cache';
 import useMessageHistory from 'hooks/messageHistory';
+import { showToast } from 'store/toasts';
 import { useUiStore } from 'store/ui';
 
 /** Erro que o axios devolve com o corpo do errorHandler do servidor. */
@@ -30,7 +31,6 @@ export default function useComposer(chat: Chat | null) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState('');
 
   /**
    * Trava síncrona do envio. O `isPending` da mutação só muda no render
@@ -54,7 +54,6 @@ export default function useComposer(chat: Chat | null) {
     setReplyTo(null);
     setEditing(null);
     setFile(null);
-    setError('');
     setText(chatId ? (useUiStore.getState().drafts[chatId] ?? '') : '');
   }, [chatId]);
 
@@ -82,7 +81,7 @@ export default function useComposer(chat: Chat | null) {
     }
 
     if (next.size > UPLOAD_MAX_MB * 1024 * 1024) {
-      setError(`O anexo passa do limite de ${UPLOAD_MAX_MB} MB.`);
+      showToast(`O anexo passa do limite de ${String(UPLOAD_MAX_MB)} MB.`);
       setFile(null);
       return;
     }
@@ -90,12 +89,11 @@ export default function useComposer(chat: Chat | null) {
     // O `accept` do seletor é só uma sugestão: o sistema deixa escolher
     // "todos os arquivos", e aí o tipo chega aqui sem ter passado por filtro.
     if (!UPLOAD_ACCEPT.split(',').includes(next.type)) {
-      setError('Este tipo de arquivo não é aceito como anexo.');
+      showToast('Este tipo de arquivo não é aceito como anexo.');
       setFile(null);
       return;
     }
 
-    setError('');
     setFile(next);
   }, []);
 
@@ -156,7 +154,6 @@ export default function useComposer(chat: Chat | null) {
   /** Envia ou salva a edição, conforme o rascunho atual. */
   const submit = useCallback(async () => {
     if (!chatId || sendingRef.current) return;
-    setError('');
 
     const trimmed = text.trim();
 
@@ -169,7 +166,7 @@ export default function useComposer(chat: Chat | null) {
         setEditing(null);
         setText('');
       } catch (err) {
-        setError(errorMessage(err, 'Não foi possível editar a mensagem.'));
+        showToast(errorMessage(err, 'Não foi possível editar a mensagem.'));
       } finally {
         sendingRef.current = false;
       }
@@ -200,7 +197,7 @@ export default function useComposer(chat: Chat | null) {
     } catch (err) {
       // Trocou de conversa no meio do envio: o rascunho não é da que está aberta.
       if (chatIdRef.current === chatId) {
-        setError(errorMessage(err, 'Não foi possível enviar.'));
+        showToast(errorMessage(err, 'Não foi possível enviar.'));
         // Sem pisar no que já tiver sido digitado depois do clique.
         setText((current) => {
           const restored = current || draft.text;
@@ -245,7 +242,7 @@ export default function useComposer(chat: Chat | null) {
         const response = await fetch.delete<Message>(url);
         replaceMessage(queryClient, chatId, response.data);
       } catch (err) {
-        setError(errorMessage(err, 'Não foi possível apagar a mensagem.'));
+        showToast(errorMessage(err, 'Não foi possível apagar a mensagem.'));
       }
     },
     [chatId, queryClient],
@@ -263,7 +260,7 @@ export default function useComposer(chat: Chat | null) {
           : await fetch.delete<Message>(url);
         replaceMessage(queryClient, chatId, response.data);
       } catch (err) {
-        setError(errorMessage(err, 'Não foi possível reagir.'));
+        showToast(errorMessage(err, 'Não foi possível reagir.'));
       }
     },
     [chatId, queryClient],
@@ -316,6 +313,5 @@ export default function useComposer(chat: Chat | null) {
     remove,
     react,
     forward,
-    error,
   };
 }

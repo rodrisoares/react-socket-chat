@@ -259,6 +259,48 @@ export interface ListOptions {
   cursor?: string;
   /** So estas conversas, sem paginar — usado para atualizar uma sozinha. */
   only?: string[];
+  /**
+   * Restringe a estas conversas, **paginando normalmente**.
+   *
+   * E o que a listagem filtrada usa: quem decide quais conversas casam com o
+   * termo e o meService, e aqui elas seguem passando pela mesma ordenacao e
+   * pelo mesmo cursor do resto. Diferente do `only`, que devolve tudo de uma
+   * vez porque so serve para atualizar uma conversa sozinha.
+   */
+  ids?: string[];
+}
+
+/**
+ * As conversas cujo **nome** casa com o termo.
+ *
+ * Nome de conversa nao mora num lugar so: o do grupo esta na propria conversa,
+ * e o da direta e o nome da outra pessoa. Por isso as duas metades do OR.
+ *
+ * O `contains` do SQLite vira LIKE, que ignora maiuscula no ASCII mas nao
+ * ignora acento — procurar "jose" nao acha "José". E a mesma limitacao que a
+ * busca de contatos tem; quem resolve acento e o indice FTS, que aqui nao
+ * existe porque nome de conversa nao e texto longo.
+ */
+export async function findIdsByName(userId: number, term: string): Promise<string[]> {
+  const rows = await prisma.chatParticipant.findMany({
+    where: {
+      userId,
+      chat: {
+        OR: [
+          { type: 'GROUP', name: { contains: term } },
+          {
+            type: 'DIRECT',
+            participants: {
+              some: { userId: { not: userId }, user: { name: { contains: term } } },
+            },
+          },
+        ],
+      },
+    },
+    select: { chatId: true },
+  });
+
+  return rows.map((row) => row.chatId);
 }
 
 export async function listForUser(
@@ -272,6 +314,9 @@ export async function listForUser(
     where: {
       userId,
       ...(options.only ? { chatId: { in: options.only } } : {}),
+      // O recorte da listagem filtrada. Entra no `where`, e nao depois: assim a
+      // pagina sai com o tamanho pedido em vez de ser podada no fim.
+      ...(options.ids ? { chatId: { in: options.ids } } : {}),
     },
     /*
      * A ordem mora no banco: fixadas primeiro, depois atividade, e o id como

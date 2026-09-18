@@ -1,9 +1,10 @@
 import './styles.scss';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import Modal from 'components/Modal';
 import Avatar from 'components/Avatar';
 import useChatList from 'hooks/chatList';
+import { useChatSearch } from 'hooks/search';
 import { readApiErrors } from 'utils/apiErrors';
 import type { AxiosError } from 'axios';
 import { FORWARD_MAX_CHATS, type Chat, type Message } from '@react-chat/shared';
@@ -34,27 +35,28 @@ export default function ForwardModal({
   const [isSending, setIsSending] = useState(false);
 
   /**
-   * Puxa o resto da lista enquanto o modal está aberto.
+   * Com termo, quem procura é o servidor; sem termo, vale a lista já carregada.
    *
-   * A lista de conversas é paginada; aqui ela é o universo de escolha, e
-   * oferecer só as 30 primeiras esconderia destinos que existem. Uma página por
-   * vez, porque cada uma depende do cursor da anterior.
+   * Antes o modal puxava **todas** as páginas ao abrir, porque o filtro era
+   * feito aqui e oferecer só as 30 primeiras esconderia destinos que existem.
+   * Com a busca no servidor, abrir o modal voltou a custar o que já estava em
+   * cache, e quem quiser ver mais rola até o fim ou digita um nome.
    */
-  useEffect(() => {
-    if (!hasMoreChats || isLoadingChats) return;
-    void loadMoreChats();
-  }, [hasMoreChats, isLoadingChats, loadMoreChats]);
+  const isFiltering = filter.trim().length > 0;
+  const found = useChatSearch(filter);
 
   const options = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
+    const visible = isFiltering ? found.chats : chats;
 
-    return chats.filter((chat) => {
+    return visible.filter((chat) => {
       // Fora: a origem, grupo de que já saiu (não dá para escrever) e contato
       // bloqueado — o servidor recusaria os três.
-      if (chat.id === fromChatId || chat.hasLeft || chat.isBlocked) return false;
-      return !needle || chat.name.toLowerCase().includes(needle);
+      return chat.id !== fromChatId && !chat.hasLeft && !chat.isBlocked;
     });
-  }, [chats, fromChatId, filter]);
+  }, [chats, found.chats, isFiltering, fromChatId]);
+
+  const hasMore = isFiltering ? found.hasMore : hasMoreChats;
+  const isLoadingMore = isFiltering ? found.isSearching : isLoadingChats;
 
   function toggle(chat: Chat) {
     setError('');
@@ -117,6 +119,21 @@ export default function ForwardModal({
             </button>
           </li>
         ))}
+
+        {/* Fim da lista carregada: o resto vem a pedido, e não de enfiada ao
+            abrir o modal. Digitar um nome costuma ser mais rápido. */}
+        {hasMore && (
+          <li>
+            <button
+              type='button'
+              className='forward-more'
+              disabled={isLoadingMore}
+              onClick={() => void (isFiltering ? found.loadMore() : loadMoreChats())}
+            >
+              {isLoadingMore ? 'Carregando…' : 'Carregar mais conversas'}
+            </button>
+          </li>
+        )}
       </ul>
 
       {error && <p className='forward-error'>{error}</p>}

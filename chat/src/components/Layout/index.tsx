@@ -7,6 +7,7 @@ import UserMenu from 'components/UserMenu';
 import ConfirmDialog from 'components/ConfirmDialog';
 import { ChatListSkeleton } from 'components/Skeleton';
 import ConnectionBanner from 'components/ConnectionBanner';
+import Toasts from 'components/Toasts';
 import fetch from 'config/fetchInstance';
 import useSession from 'hooks/session';
 import useChatList from 'hooks/chatList';
@@ -171,6 +172,10 @@ export default function Layout() {
         <ConnectionBanner />
         <Outlet />
       </div>
+
+      {/* Os avisos passageiros, num canto só e anunciados por leitor de tela.
+          Montado na casca porque quem falha pode ser qualquer tela. */}
+      <Toasts />
 
       {isLeaving && (
         <ConfirmDialog

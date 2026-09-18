@@ -132,10 +132,10 @@ describe('quem saiu do grupo', () => {
     const { marcia, chatId } = await scenario();
 
     const global = await request(app)
-      .get('/api/me/search?q=depois')
+      .get('/api/me/chats?q=depois')
       .set('Authorization', auth(marcia.id))
       .expect(200);
-    expect(body<{ results: unknown[] }>(global).results).toHaveLength(0);
+    expect(body<{ chats: unknown[] }>(global).chats).toHaveLength(0);
 
     const naConversa = await request(app)
       .get(`/api/chats/${chatId}/search?q=depois`)

@@ -1,0 +1,95 @@
+@use 'config/variables' as *;
+
+/*
+ * Os avisos flutuam no canto, sobre tudo.
+ *
+ * `fixed`, e nao dentro do fluxo: os erros que isto substitui eram paragrafos
+ * entre a lista de mensagens e o compositor, e apareciam empurrando a conversa
+ * para cima — a linha que se estava lendo saltava junto com o aviso.
+ *
+ * Sem `pointer-events` na lista, so nos avisos: uma lista vazia ocupando o
+ * canto da tela bloquearia o clique no que estiver embaixo dela.
+ */
+.toasts {
+  bottom: $space-5;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  left: 50%;
+  list-style: none;
+  margin: 0;
+  max-width: min(420px, calc(100vw - #{$space-5} * 2));
+  padding: 0;
+  pointer-events: none;
+  position: fixed;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 60;
+}
+
+.toast {
+  align-items: flex-start;
+  animation: toast-in 0.18s ease-out;
+  background-color: var(--surface, #{$cinza-sidebars});
+  border: 1px solid var(--line, #{$cinza-chat-1});
+  border-radius: $radius-md;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: flex;
+  gap: $space-3;
+  padding: $space-3 $space-4;
+  pointer-events: auto;
+
+  /* A cor diz o tipo; o icone diz o mesmo para quem nao distingue cor. */
+  &--error {
+    border-left: 3px solid #e5484d;
+  }
+
+  &--info {
+    border-left: 3px solid var(--accent, #{$laranja});
+  }
+
+  &-icon {
+    display: flex;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+
+  &-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-shrink: 0;
+    opacity: 0.7;
+    padding: 0;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

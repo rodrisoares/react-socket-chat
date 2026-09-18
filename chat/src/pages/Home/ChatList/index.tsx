@@ -6,7 +6,6 @@ import useSession from 'hooks/session';
 import useChatList from 'hooks/chatList';
 import usePresence from 'hooks/presence';
 import { useDrafts } from 'store/ui';
-import filterChats from 'utils/chatFilter';
 import { typingPreview } from 'utils/typingLabel';
 import { useChatSearch } from 'hooks/search';
 import type { Chat } from '@react-chat/shared';
@@ -36,7 +35,7 @@ interface ChatListProps {
 /** Uma linha da lista virtual: o título de uma seção, uma conversa, ou o fim. */
 type Row =
   | { kind: 'header'; id: string; label: string }
-  | { kind: 'chat'; id: string; chat: Chat; matchText?: string; matchId?: string }
+  | { kind: 'chat'; id: string; chat: Chat }
   | { kind: 'more'; id: string };
 
 /** Altura de chute de cada tipo de linha, até a medição real. */
@@ -88,34 +87,32 @@ export default function ChatList({
   const myId = user?.id;
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // As ocorrências no conteúdo vêm do servidor; o nome casa aqui mesmo.
-  const hits = useChatSearch(filter);
-
   /**
-   * Filtrar puxa o resto da lista.
+   * Com filtro, quem lista é o servidor.
    *
-   * O nome da conversa é casado aqui, no client, então filtrar com páginas
-   * faltando esconderia conversas que existem. Enquanto há filtro, as páginas
-   * restantes vão sendo buscadas — uma por vez, porque cada uma depende do
-   * cursor da anterior.
+   * O nome da conversa era casado aqui, sobre as páginas já carregadas — e para
+   * isso não esconder conversa que existe, a tela puxava a lista inteira ao
+   * primeiro caractere digitado. Agora nome e conteúdo saem da mesma consulta
+   * (`/api/me/chats?q=`), paginada como qualquer outra.
    */
-  useEffect(() => {
-    if (!filter.trim() || !hasMoreChats || isLoadingChats) return;
-    void loadMoreChats();
-  }, [filter, hasMoreChats, isLoadingChats, loadMoreChats]);
+  const isFiltering = filter.trim().length > 0;
+  const found = useChatSearch(filter);
 
-  const matches = useMemo(() => {
-    const byTab = chats.filter((chat) => {
-      // Arquivada só aparece na própria aba: nas outras ela some, inclusive
-      // com mensagem por ler — senão o arquivo não esconderia nada.
-      if (tab === 'archived') return chat.isArchived;
-      if (chat.isArchived) return false;
-      if (tab === 'unread') return chat.unreadMessages > 0;
-      if (tab === 'groups') return chat.type === 'GROUP';
-      return true;
-    });
-    return filterChats(byTab, filter, hits);
-  }, [chats, filter, tab, hits]);
+  const visible = isFiltering ? found.chats : chats;
+
+  const matches = useMemo(
+    () =>
+      visible.filter((chat) => {
+        // Arquivada só aparece na própria aba: nas outras ela some, inclusive
+        // com mensagem por ler — senão o arquivo não esconderia nada.
+        if (tab === 'archived') return chat.isArchived;
+        if (chat.isArchived) return false;
+        if (tab === 'unread') return chat.unreadMessages > 0;
+        if (tab === 'groups') return chat.type === 'GROUP';
+        return true;
+      }),
+    [visible, tab],
+  );
 
   /**
    * As fixadas ganham um título próprio: elas já subiam para o topo, mas nada
@@ -123,20 +120,16 @@ export default function ChatList({
    * quando há um de cima — sozinho, "Conversas" não separaria nada.
    */
   const rows = useMemo<Row[]>(() => {
-    const pinned = matches.filter((match) => match.chat.isPinned);
-    const rest = matches.filter((match) => !match.chat.isPinned);
+    const pinned = matches.filter((chat) => chat.isPinned);
+    const rest = matches.filter((chat) => !chat.isPinned);
 
-    const toRow = ({ chat, matchText, matchId }: (typeof matches)[number]): Row => ({
-      kind: 'chat',
-      id: chat.id,
-      chat,
-      ...(matchText ? { matchText } : {}),
-      ...(matchId ? { matchId } : {}),
-    });
+    const toRow = (chat: Chat): Row => ({ kind: 'chat', id: chat.id, chat });
 
     // A última linha é o gatilho do carregamento: entrar na tela é o que pede
-    // a página seguinte, sem botão nem rolagem monitorada à parte.
-    const tail: Row[] = hasMoreChats ? [{ kind: 'more', id: 'more' }] : [];
+    // a página seguinte, sem botão nem rolagem monitorada à parte. Filtrando,
+    // quem tem página seguinte é o resultado, e não a lista inteira.
+    const tail: Row[] =
+      (isFiltering ? found.hasMore : hasMoreChats) ? [{ kind: 'more', id: 'more' }] : [];
 
     if (pinned.length === 0) return [...rest.map(toRow), ...tail];
 
@@ -149,7 +142,7 @@ export default function ChatList({
       ...rest.map(toRow),
       ...tail,
     ];
-  }, [matches, hasMoreChats]);
+  }, [matches, hasMoreChats, isFiltering, found.hasMore]);
 
   /**
    * Lista virtualizada, como a de mensagens: com muitas conversas todos os
@@ -216,16 +209,23 @@ export default function ChatList({
               style={{ transform: `translateY(${item.start}px)` }}
             >
               {row.kind === 'more' ? (
-                <MoreChats onReach={loadMoreChats} isLoading={isLoadingChats} />
+                <MoreChats
+                  onReach={isFiltering ? found.loadMore : loadMoreChats}
+                  isLoading={isFiltering ? found.isSearching : isLoadingChats}
+                />
               ) : row.kind === 'header' ? (
                 <h3 className='home-chat-list-title'>{row.label}</h3>
               ) : (
                 <CardChat
                   chat={row.chat}
-                  onClick={(chat) => onSelect(chat, row.matchId)}
+                  // A mensagem que casou vem na própria conversa: clicar no
+                  // resultado abre a conversa já saltando até ela.
+                  onClick={(chat) => onSelect(chat, chat.matchedMessage?.id)}
                   isActive={row.chat.id === activeChatId}
                   typingLabel={typingLabelFor(row.chat)}
-                  {...(row.matchText ? { matchText: row.matchText } : {})}
+                  {...(row.chat.matchedMessage
+                    ? { matchText: row.chat.matchedMessage.text }
+                    : {})}
                   {...(draft ? { draft } : {})}
                   {...(myId !== undefined ? { myId } : {})}
                   onMarkRead={onMarkRead}

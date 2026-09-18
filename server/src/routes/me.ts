@@ -36,8 +36,18 @@ meRouter.delete('/', validate(deleteAccountSchema), me.deleteAccount);
  */
 meRouter.post('/avatar', uploadLimiter, upload.single('image'), verifyUpload, me.uploadAvatar);
 
-meRouter.get('/chats', me.listChats);
-meRouter.get('/search', searchLimiter, me.search);
+/**
+ * A lista de conversas — e tambem a busca nelas.
+ *
+ * Com `?q=`, ela filtra por nome e por conteudo. Eram duas fontes: o nome
+ * casado no navegador, sobre as paginas ja carregadas, e o conteudo numa rota
+ * `/search` a parte. Para o filtro por nome nao esconder conversa que existe, a
+ * tela era obrigada a puxar a lista inteira ao primeiro caractere digitado.
+ *
+ * Com o limite de busca porque, com termo, a rota passa pelo indice FTS — e a
+ * tela dispara uma requisicao a cada poucas teclas.
+ */
+meRouter.get('/chats', searchLimiter, me.listChats);
 // Com limite de busca: a rota virou consulta com termo, e a tela dispara uma a
 // cada poucas teclas — o mesmo motivo que pôs o limite na busca de mensagens.
 meRouter.get('/contacts', searchLimiter, me.contacts);

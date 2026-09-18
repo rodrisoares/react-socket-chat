@@ -14,7 +14,14 @@ export const queryKeys = {
 
   /** A lista de conversas, paginada por cursor. */
   chats: ['chats'] as const,
-  chat: (chatId: string) => ['chats', chatId] as const,
+  /**
+   * A mesma lista, filtrada por nome ou conteúdo no servidor.
+   *
+   * Sob `['chats', ...]` de propósito: o que mexe no cache das conversas
+   * alcança a listagem filtrada pelo mesmo caminho, e ela não congela
+   * enquanto se digita.
+   */
+  chatFilter: (term: string) => ['chats', 'filter', term] as const,
   chatDetails: (chatId: string) => ['chats', chatId, 'details'] as const,
   chatGallery: (chatId: string) => ['chats', chatId, 'gallery'] as const,
   chatSearch: (chatId: string, term: string) =>
@@ -23,10 +30,8 @@ export const queryKeys = {
   /** O histórico de uma conversa, paginado para trás. */
   messages: (chatId: string) => ['messages', chatId] as const,
 
-  /** Busca por conteúdo em todas as conversas. */
-  search: (term: string) => ['search', term] as const,
-
-  contacts: ['contacts'] as const,
+  /** Contatos para iniciar conversa, filtrados no servidor. */
+  contacts: (term: string) => ['contacts', term] as const,
   blocks: ['blocks'] as const,
   devices: ['devices'] as const,
 

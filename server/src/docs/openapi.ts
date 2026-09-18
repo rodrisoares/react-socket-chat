@@ -309,21 +309,20 @@ const routes: Record<string, Partial<Record<Method, Operation>>> = {
   '/api/me/chats': {
     get: {
       tag: 'Perfil',
-      summary: 'A lista de conversas, paginada por cursor',
+      summary: 'A lista de conversas, paginada por cursor — e a busca nelas',
+      description:
+        'Com `q`, filtra por nome **e** por conteúdo, e o resultado continua paginado. A conversa que casou pelo conteúdo vem com `matchedMessage`; a que casou pelo nome, não. O nome vale desde a primeira letra; o conteúdo, a partir de duas.',
       query: {
         limit: 'Quantas por página (1 a 100).',
         cursor: 'Id da conversa que fechou a página anterior.',
+        q: 'Filtra por nome de conversa ou por conteúdo das mensagens.',
       },
-      responses: { '200': 'As conversas e o cursor da próxima página.', ...AUTENTICADA },
-    },
-  },
-  '/api/me/search': {
-    get: {
-      tag: 'Perfil',
-      summary: 'Busca por conteúdo em todas as suas conversas',
-      description: 'Uma ocorrência por conversa, a mais relevante. Índice FTS5.',
-      query: { q: 'O termo. Abaixo de dois caracteres a resposta vem vazia.' },
-      responses: { '200': 'Uma ocorrência por conversa.', ...AUTENTICADA, '429': 'Muitas buscas.' },
+      responses: {
+        '200': 'As conversas e o cursor da próxima página.',
+        '400': 'Parâmetro "limit" inválido.',
+        ...AUTENTICADA,
+        '429': 'Muitas buscas seguidas.',
+      },
     },
   },
   '/api/me/contacts': {

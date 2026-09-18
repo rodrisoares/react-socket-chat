@@ -176,6 +176,16 @@ export interface Chat {
    * quando a conversa é aberta.
    */
   lastMessage: Message | null;
+  /**
+   * A mensagem que casou com o filtro — por que esta conversa está no
+   * resultado.
+   *
+   * Só vem numa listagem filtrada (`GET /api/me/chats?q=`), e só quando o
+   * casamento foi por conteúdo: quem entrou pelo nome da conversa não tem
+   * mensagem para mostrar. O card exibe este trecho no lugar da última
+   * mensagem, e clicar nele salta até ela.
+   */
+  matchedMessage?: Message;
 }
 
 /** Membro do grupo com a data de entrada — o painel de detalhes mostra. */
@@ -335,11 +345,12 @@ export interface SavedMessage {
   message: Message;
 }
 
-/** Uma ocorrência por conversa, como /api/me/search devolve. */
-export interface SearchHit {
-  chatId: string;
-  message: Message;
-}
+/*
+ * Aqui morava o `SearchHit`, de uma rota `/api/me/search` que devolvia uma
+ * ocorrência por conversa. A busca na lista passou a sair da própria listagem
+ * (`GET /api/me/chats?q=`), que já devolve a conversa inteira — e a conversa
+ * que casou pelo conteúdo traz a mensagem em `matchedMessage`.
+ */
 
 /** Um link citado em alguma mensagem, como a galeria o lista. */
 export interface GalleryLink {

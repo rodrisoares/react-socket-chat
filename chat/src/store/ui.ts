@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 /**
  * O estado que não vem do servidor: o que está aberto na tela e os sinais
@@ -73,7 +74,24 @@ const EMPTY = {
   liveReadBy: {},
 } satisfies Pick<UiState, 'focusMessageId' | 'drafts' | 'typing' | 'liveReadBy'>;
 
-export const useUiStore = create<UiState>((set, get) => ({
+/**
+ * O rascunho sobrevive ao F5; o resto, não.
+ *
+ * O card da lista promete "Rascunho:" — e a promessa não se sustentava: tudo
+ * aqui era memória da aba, então recarregar a página apagava o que estava
+ * escrito e o card continuava anunciando um texto que já não existia.
+ *
+ * Só os rascunhos são gravados. "Digitando…", leitura ao vivo, visibilidade da
+ * aba e o alvo do salto são sinais do instante: restaurá-los mostraria alguém
+ * digitando uma frase que terminou ontem.
+ *
+ * O armazenamento pode falhar — janela anônima, dados do site bloqueados —, e
+ * aí o `persist` simplesmente não persiste: o app continua funcionando com o
+ * comportamento de antes.
+ */
+export const useUiStore = create<UiState>()(
+  persist(
+    (set, get) => ({
   ...EMPTY,
   isVisible: typeof document === 'undefined' || document.visibilityState === 'visible',
 
@@ -135,10 +153,17 @@ export const useUiStore = create<UiState>((set, get) => ({
       },
     })),
 
-  setVisible: (isVisible) => set({ isVisible }),
+      setVisible: (isVisible) => set({ isVisible }),
 
-  reset: () => set({ ...EMPTY }),
-}));
+      reset: () => set({ ...EMPTY }),
+    }),
+    {
+      name: 'react-chat:ui',
+      // Só o rascunho atravessa o F5 — ver o comentário acima.
+      partialize: (state) => ({ drafts: state.drafts }),
+    },
+  ),
+);
 
 /**
  * Seletores prontos: assinar o store inteiro faria a lista re-renderizar a

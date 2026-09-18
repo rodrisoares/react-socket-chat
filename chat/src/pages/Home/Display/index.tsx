@@ -25,6 +25,7 @@ import useAutoRead from 'hooks/autoRead';
 import useEscape from 'hooks/escape';
 import { useMessageSearch } from 'hooks/search';
 import fetch from 'config/fetchInstance';
+import { showToast } from 'store/toasts';
 import { useUiStore } from 'store/ui';
 import { clearHistoryMessage, deleteChatMessage } from 'utils/chatActions';
 import { isPreviewable } from 'utils/media';
@@ -62,9 +63,6 @@ export default function Display({ onNewChat }: DisplayProps) {
    * mesmo alvo poder ser pedido duas vezes seguidas.
    */
   const [focus, setFocus] = useState<{ id: string; key: number } | null>(null);
-  const [jumpError, setJumpError] = useState('');
-  /** Erro de uma ação otimista que o servidor acabou recusando. */
-  const [actionError, setActionError] = useState('');
   /** Mensagem esperando confirmação para ser apagada; null = nenhuma. */
   const [deleting, setDeleting] = useState<Message | null>(null);
   /** Mensagem com o painel de "quem leu" aberto; null = fechado. */
@@ -145,7 +143,7 @@ export default function Display({ onNewChat }: DisplayProps) {
    * citação mais funda do que isso não levava a lugar nenhum.
    */
   async function runJump(messageId: string) {
-    setJumpError('');
+    // Os avisos agora saem como toast, no canto — ver store/toasts.
 
     // A busca mostra só os resultados: saltar dentro dela levaria a uma lista
     // onde a mensagem original nem aparece.
@@ -160,7 +158,7 @@ export default function Display({ onNewChat }: DisplayProps) {
     }
 
     if (await composer.jumpTo(messageId)) focusMessage(messageId);
-    else setJumpError('A mensagem não está mais disponível nesta conversa.');
+    else showToast('A mensagem não está mais disponível nesta conversa.');
   }
 
   /** O clique não espera a viagem: quem aguarda é o `runJump`. */
@@ -175,7 +173,6 @@ export default function Display({ onNewChat }: DisplayProps) {
     const isCurrent = chat.pinnedMessage?.id === message.id;
     const previous = chat.pinnedMessage;
 
-    setActionError('');
     // Otimista: o banner responde na hora, e o chat-updated do socket traz a
     // versão do servidor por cima.
     patchChat(chat.id, { pinnedMessage: isCurrent ? null : message });
@@ -187,7 +184,7 @@ export default function Display({ onNewChat }: DisplayProps) {
       // Sem desfazer, o topo da conversa passa a anunciar um pino que o
       // servidor recusou — e some um que continua lá para todo mundo.
       patchChat(chat.id, { pinnedMessage: previous });
-      setActionError('Não foi possível mudar a mensagem fixada.');
+      showToast('Não foi possível mudar a mensagem fixada.');
     });
   }
 
@@ -323,8 +320,6 @@ export default function Display({ onNewChat }: DisplayProps) {
     setForwarding(null);
     setMediaIndex(null);
     setFocus(null);
-    setJumpError('');
-    setActionError('');
     setDeleting(null);
     setInfoFor(null);
   }, [chat?.id]);
@@ -645,9 +640,6 @@ export default function Display({ onNewChat }: DisplayProps) {
         )}
 
         {typing.label && <p className='display-typing'>{typing.label}</p>}
-        {jumpError && <p className='display-error'>{jumpError}</p>}
-        {actionError && <p className='display-error'>{actionError}</p>}
-        {composer.error && <p className='display-error'>{composer.error}</p>}
 
         {chat.hasLeft ? (
           <p className='display-readonly'>

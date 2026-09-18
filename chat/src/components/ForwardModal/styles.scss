@@ -71,6 +71,28 @@
     margin: 0;
   }
 
+  /* Fim da lista carregada: o resto vem a pedido. */
+  &-more {
+    background: none;
+    border: 1px dashed var(--line, #{$cinza-chat-1});
+    border-radius: 8px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.8;
+    padding: 8px;
+    width: 100%;
+
+    &:hover:not(:disabled) {
+      border-color: var(--accent, #{$laranja});
+      opacity: 1;
+    }
+
+    &:disabled {
+      cursor: progress;
+    }
+  }
+
   &-submit {
     background-color: var(--accent, #{$laranja});
     border: none;

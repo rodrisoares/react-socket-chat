@@ -4,7 +4,6 @@ import { CONTACTS_PAGE_SIZE } from '@react-chat/shared';
 import type {
   ChatPage,
   SavedMessage,
-  SearchHit,
   SessionUser,
   User,
 } from '@react-chat/shared';
@@ -134,32 +133,55 @@ export async function updateProfile(
 }
 
 /**
- * Conversas do usuário. Antes só chegavam embutidas na resposta do login —
- * não havia nenhum GET na API.
+ * Conversas do usuário, com ou sem filtro.
+ *
+ * Com `term`, a lista é filtrada **aqui**, e não no cliente. Antes eram duas
+ * fontes: o nome era casado no navegador, sobre as conversas já carregadas, e
+ * o conteúdo vinha de uma rota de busca separada. A consequência era uma
+ * cascata — para o filtro por nome não esconder conversas que existem, a tela
+ * era obrigada a puxar todas as páginas da lista assim que alguém digitava a
+ * primeira letra.
+ *
+ * Casar por nome **ou** por conteúdo é uma coisa só do ponto de vista de quem
+ * procura, e agora é uma coisa só do ponto de vista do código. A paginação
+ * continua valendo para o resultado filtrado, o que é justamente o que a
+ * cascata existia para contornar.
  */
-export function listChats(
+export async function listChats(
   userId: number,
-  options: { limit?: number; cursor?: string },
+  options: { limit?: number; cursor?: string; term?: string },
 ): Promise<ChatPage> {
-  return chats.listForUser(userId, options);
-}
+  const term = options.term?.trim() ?? '';
+  if (!term) return chats.listForUser(userId, options);
 
-/**
- * Busca por conteúdo em todas as conversas do usuário: uma ocorrência por
- * conversa, a mais recente. Antes a busca da lista só olhava as mensagens que
- * o cliente tinha em memória — as últimas 30 de cada conversa.
- */
-export async function search(userId: number, term: string): Promise<SearchHit[]> {
-  if (term.length < MIN_SEARCH_LENGTH) return [];
+  const byName = await chats.findIdsByName(userId, term);
 
-  // Sem carregar as participações antes: quem recorta por conversa agora é o
-  // próprio SQL da busca, com um join — ver bestPerChat.
-  const found = await messages.searchForUser(term, userId);
+  /*
+   * O conteúdo só entra a partir de dois caracteres.
+   *
+   * O nome vale desde a primeira letra — filtrar uma lista curta digitando "a"
+   * é comum e barato. Já a busca no histórico com uma letra devolveria quase
+   * tudo, e custaria o índice inteiro para isso.
+   */
+  const hits =
+    term.length >= MIN_SEARCH_LENGTH ? await messages.searchForUser(term, userId) : [];
 
-  return found.map((message) => ({
-    chatId: message.chatId,
-    message: chats.serializeMessage(message),
-  }));
+  const byContent = new Map(hits.map((message) => [message.chatId, message]));
+  const ids = [...new Set([...byName, ...byContent.keys()])];
+
+  if (ids.length === 0) return { chats: [], nextCursor: null };
+
+  const page = await chats.listForUser(userId, { ...options, ids });
+
+  return {
+    ...page,
+    chats: page.chats.map((chat) => {
+      const hit = byContent.get(chat.id);
+      // Quem entrou pelo nome não tem mensagem para mostrar, e o card cai na
+      // última mensagem — que é o que ele mostraria de todo modo.
+      return hit ? { ...chat, matchedMessage: chats.serializeMessage(hit) } : chat;
+    }),
+  };
 }
 
 /**
