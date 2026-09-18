@@ -1,4 +1,4 @@
-import type { MessageType } from '@react-chat/shared';
+import { GALLERY_PAGE_SIZE, type MessageType } from '@react-chat/shared';
 
 import { prisma } from '../config/prisma.js';
 import * as fts from './fts.js';
@@ -401,27 +401,63 @@ export async function searchInChat(
 }
 
 /** Teto por aba da galeria: midia, arquivos e links. */
-export const GALLERY_LIMIT = 60;
+export const GALLERY_LIMIT = GALLERY_PAGE_SIZE;
 
 /**
- * Anexos da conversa, do mais novo para o mais antigo.
+ * O `startsWith` de cada tipo que a aba "Midia" mostra.
+ *
+ * A divisao entre midia e arquivo era feita na camada de servico, sobre uma
+ * pagina ja lida do banco — e por isso a consulta trazia o dobro do teto, na
+ * esperanca de que sobrasse o bastante para os dois lados. Com a aba paginando
+ * sozinha, o filtro precisa ser da consulta: `take` de 60 em "Arquivos" tem de
+ * devolver 60 arquivos, e nao 60 anexos dos quais 58 sao fotos.
+ */
+const MEDIA_PREFIXES = ['image/', 'video/'];
+
+const isMedia = { OR: MEDIA_PREFIXES.map((prefix) => ({ attachmentType: { startsWith: prefix } })) };
+
+/**
+ * Uma pagina a partir de uma mensagem ja vista, no formato do Prisma.
+ *
+ * `skip: 1` porque o cursor e o ultimo item da pagina anterior: sem ele, cada
+ * "Carregar mais" repetiria uma linha na emenda.
+ *
+ * As duas chaves saem sempre, e o tipo de retorno e declarado: devolvendo `{}`
+ * na ausencia de cursor, o espalhamento vira uma uniao de dois formatos de
+ * argumento e o `findMany` recusa os dois.
+ */
+function pageAfter(cursor?: string): { cursor: { id: string } | undefined; skip: number } {
+  return cursor ? { cursor: { id: cursor }, skip: 1 } : { cursor: undefined, skip: 0 };
+}
+
+/**
+ * Anexos da conversa, do mais novo para o mais antigo, de uma aba so.
  *
  * A visibilidade e a mesma do historico: o que "Limpar conversa" escondeu, e
  * o que o grupo mandou depois de o usuario sair, nao reaparecem pela galeria.
+ *
+ * Le um item alem do teto — e quem chama descarta o excedente. E assim que a
+ * resposta sabe dizer se ainda ha mais para tras sem uma segunda consulta de
+ * contagem.
  */
-export function listAttachments(chatId: string, visibility: Visibility, userId: number) {
+export function listAttachments(
+  chatId: string,
+  visibility: Visibility,
+  userId: number,
+  options: { kind: 'media' | 'files'; cursor?: string },
+) {
   return prisma.message.findMany({
     where: {
       chatId,
       deletedAt: null,
       ...notDeletedFor(userId),
       attachmentUrl: { not: null },
+      ...(options.kind === 'media' ? isMedia : { NOT: isMedia }),
       ...createdAtRange(visibility),
     },
     orderBy: { createdAt: 'desc' },
-    // O dobro do teto: a rota ainda separa midia de arquivo, e um so tipo
-    // poderia levar a pagina inteira.
-    take: GALLERY_LIMIT * 2,
+    take: GALLERY_LIMIT + 1,
+    ...pageAfter(options.cursor),
     include: withSender,
   });
 }
@@ -430,7 +466,12 @@ export function listAttachments(chatId: string, visibility: Visibility, userId: 
  * Mensagens que carregam link. O SQLite nao tem regex no Prisma, entao o
  * `contains` filtra o grosso no banco e a extracao fina fica na rota.
  */
-export function listWithLinks(chatId: string, visibility: Visibility, userId: number) {
+export function listWithLinks(
+  chatId: string,
+  visibility: Visibility,
+  userId: number,
+  cursor?: string,
+) {
   return prisma.message.findMany({
     where: {
       chatId,
@@ -442,7 +483,8 @@ export function listWithLinks(chatId: string, visibility: Visibility, userId: nu
       ...createdAtRange(visibility),
     },
     orderBy: { createdAt: 'desc' },
-    take: GALLERY_LIMIT,
+    take: GALLERY_LIMIT + 1,
+    ...pageAfter(cursor),
     include: withSender,
   });
 }

@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
-import { CONTACTS_PAGE_SIZE } from '@react-chat/shared';
+import { CONTACTS_PAGE_SIZE, SAVED_LIMIT } from '@react-chat/shared';
 import type {
   ChatPage,
   SavedMessage,
@@ -30,8 +30,10 @@ import * as events from '../socket/events.js';
 
 /** O que é do próprio usuário: perfil, conversas, favoritos, bloqueios, sessões. */
 
-/** Teto da lista de salvas: ela é um atalho, não um segundo histórico. */
-const SAVED_LIMIT = 100;
+/*
+ * O teto da lista de salvas — ela é um atalho, não um segundo histórico — mora
+ * no contrato: a tela precisa do mesmo número para avisar quando bateu nele.
+ */
 
 /** Abaixo disto a busca não vale a viagem. */
 const MIN_SEARCH_LENGTH = 2;

@@ -61,6 +61,24 @@ export const MESSAGES_PAGE_SIZE = 30;
 /** Conversas por página da lista. */
 export const CHATS_PAGE_SIZE = 30;
 
+/**
+ * Itens por aba da galeria — ver GET /api/chats/:id/media.
+ *
+ * Aqui, e não só no servidor, porque o painel precisa dizer quantos ainda
+ * faltam antes de pedir a próxima página: sem o número, "Carregar mais" é um
+ * botão que não promete nada.
+ */
+export const GALLERY_PAGE_SIZE = 60;
+
+/**
+ * Teto da lista de salvas — ver GET /api/me/saved.
+ *
+ * A lista não pagina: o servidor corta aqui e a tela avisa quando bateu no
+ * teto. Estava escrito só no servidor, e a tela crescia sem dizer que havia
+ * um fim.
+ */
+export const SAVED_LIMIT = 100;
+
 /** Teto de um anexo, em MB. */
 export const UPLOAD_MAX_MB = 10;
 

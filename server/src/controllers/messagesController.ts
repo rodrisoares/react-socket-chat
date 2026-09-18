@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import type { GalleryTab } from '@react-chat/shared';
 import type {
   EditMessageInput,
   ForwardInput,
@@ -64,8 +65,33 @@ export const search: RequestHandler<{ id: string }> = async (req, res) => {
   res.json({ messages: await messageService.search(req.params.id, currentUserId(req), term) });
 };
 
+/** As abas que `?tab=` aceita — a mesma lista do contrato. */
+const GALLERY_TABS: GalleryTab[] = ['media', 'files', 'links'];
+
 export const gallery: RequestHandler<{ id: string }> = async (req, res) => {
-  res.json(await messageService.gallery(req.params.id, currentUserId(req)));
+  // Sem `?tab=`, é a abertura do painel: a primeira página das três abas. Com
+  // ela, é o "Carregar mais" de uma aba só, continuando do `?cursor=`.
+  const rawTab = req.query['tab'];
+  if (rawTab !== undefined && !GALLERY_TABS.includes(rawTab as GalleryTab)) {
+    throw AppError.badRequest('Parâmetro "tab" inválido');
+  }
+
+  const tab = rawTab as GalleryTab | undefined;
+
+  const rawCursor = req.query['cursor'];
+  const cursor = typeof rawCursor === 'string' && rawCursor ? rawCursor : undefined;
+
+  // Cursor sem aba não diz de qual das três ele é: as três paginam separadas.
+  if (cursor && !tab) {
+    throw AppError.badRequest('O parâmetro "cursor" exige "tab"');
+  }
+
+  res.json(
+    await messageService.gallery(req.params.id, currentUserId(req), {
+      ...(tab ? { tab } : {}),
+      ...(cursor ? { cursor } : {}),
+    }),
+  );
 };
 
 export const send: RequestHandler<{ id: string }> = async (req, res) => {

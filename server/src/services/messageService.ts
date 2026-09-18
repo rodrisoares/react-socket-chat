@@ -7,6 +7,7 @@ import {
 import type {
   ChatGallery,
   GalleryLink,
+  GalleryTab,
   Message,
   MessageInfo,
   MessagePage,
@@ -154,40 +155,74 @@ export async function search(
   return found.map(chats.serializeMessage);
 }
 
-/** Tipos que a galeria mostra como mídia; o resto vira "arquivo". */
-function isGalleryMedia(type: string | null): boolean {
-  return Boolean(type && (type.startsWith('image/') || type.startsWith('video/')));
-}
-
 /** Links de um texto, sem repetir o mesmo endereço duas vezes. */
 const LINK_PATTERN = /https?:\/\/[^\s<>"')]+/g;
+
+/** Qual aba paginar e de onde continuar. Sem `tab`, é a primeira página das três. */
+export interface GalleryOptions {
+  tab?: GalleryTab;
+  /** Id da última mensagem já mostrada naquela aba. */
+  cursor?: string;
+}
+
+/**
+ * Tira o item-sentinela da página.
+ *
+ * A consulta lê um a mais que o teto de propósito: a presença desse excedente
+ * é a resposta de "ainda há mais para trás?", e ela sai de graça — sem uma
+ * segunda consulta só para contar.
+ */
+function cut<T>(rows: T[]): { rows: T[]; hasMore: boolean } {
+  const hasMore = rows.length > messages.GALLERY_LIMIT;
+  return { rows: hasMore ? rows.slice(0, messages.GALLERY_LIMIT) : rows, hasMore };
+}
 
 /**
  * Galeria da conversa: mídia, arquivos e links, como no painel do WhatsApp.
  *
- * Vem tudo numa resposta só porque as três abas do painel são a mesma visita:
- * separar em três rotas custaria três idas ao servidor para trocar de aba.
+ * Sem `tab`, as três abas vêm numa resposta só, porque elas são a mesma visita:
+ * separar a abertura em três rotas custaria três idas ao servidor para trocar
+ * de aba. Com `tab` e `cursor`, é a próxima página daquela aba — as outras duas
+ * voltam vazias, e o cliente concatena.
+ *
+ * O cursor de cada aba é o id da última mensagem que ela mostrou, e por isso
+ * não precisa de campo próprio na resposta: mídia e arquivos o têm em
+ * `message.id`, e os links em `link.messageId`.
  */
-export async function gallery(chatId: string, userId: number): Promise<ChatGallery> {
+export async function gallery(
+  chatId: string,
+  userId: number,
+  options: GalleryOptions = {},
+): Promise<ChatGallery> {
   const { visibility } = await chatService.assertParticipant(chatId, userId);
+  const { tab, cursor } = options;
 
-  const [attachments, withLinks] = await Promise.all([
-    messages.listAttachments(chatId, visibility, userId),
-    messages.listWithLinks(chatId, visibility, userId),
+  // Sem aba pedida, as três: é a abertura do painel. Com aba, só ela.
+  const wants = (id: GalleryTab) => tab === undefined || tab === id;
+  // O cursor é da aba pedida — na abertura não há de onde continuar.
+  const from = tab && cursor ? { cursor } : {};
+
+  const [mediaRows, fileRows, linkRows] = await Promise.all([
+    wants('media')
+      ? messages.listAttachments(chatId, visibility, userId, { kind: 'media', ...from })
+      : [],
+    wants('files')
+      ? messages.listAttachments(chatId, visibility, userId, { kind: 'files', ...from })
+      : [],
+    wants('links') ? messages.listWithLinks(chatId, visibility, userId, from.cursor) : [],
   ]);
 
-  const media = attachments
-    .filter((message) => isGalleryMedia(message.attachmentType))
-    .slice(0, messages.GALLERY_LIMIT)
-    .map(chats.serializeMessage);
+  const mediaPage = cut(mediaRows);
+  const filePage = cut(fileRows);
+  const linkPage = cut(linkRows);
 
-  const files = attachments
-    .filter((message) => !isGalleryMedia(message.attachmentType))
-    .slice(0, messages.GALLERY_LIMIT)
-    .map(chats.serializeMessage);
-
+  /*
+   * O `seen` é de uma página só. Duas mensagens em páginas diferentes podem
+   * citar o mesmo endereço, e aí ele volta duas vezes — quem junta as páginas
+   * é que descarta o repetido, porque só lá existe a lista inteira.
+   */
   const seen = new Set<string>();
-  const links: GalleryLink[] = withLinks.flatMap((message) => {
+  const links: GalleryLink[] = linkPage.rows.flatMap((message) => {
     const found = message.text.match(LINK_PATTERN) ?? [];
 
     return found.flatMap((url) => {
@@ -206,7 +241,16 @@ export async function gallery(chatId: string, userId: number): Promise<ChatGalle
     });
   });
 
-  return { media, files, links };
+  return {
+    media: mediaPage.rows.map(chats.serializeMessage),
+    files: filePage.rows.map(chats.serializeMessage),
+    links,
+    hasMore: {
+      media: mediaPage.hasMore,
+      files: filePage.hasMore,
+      links: linkPage.hasMore,
+    },
+  };
 }
 
 /** O anexo já gravado em disco, como a rota o recebeu do multer. */

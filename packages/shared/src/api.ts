@@ -362,13 +362,29 @@ export interface GalleryLink {
   createdAt: string;
 }
 
-/** GET /api/chats/:id/media — as três abas do painel numa resposta só. */
+/** As três abas da galeria. É o `tab` de `GET /api/chats/:id/media`. */
+export type GalleryTab = 'media' | 'files' | 'links';
+
+/**
+ * GET /api/chats/:id/media — uma página da galeria.
+ *
+ * Sem `?tab=`, é a primeira página das três abas de uma vez: elas são a mesma
+ * visita, e trocar de aba não deveria custar uma ida à rede. Com `?tab=` e
+ * `?cursor=`, é a próxima página **daquela** aba, e as outras duas voltam
+ * vazias com `hasMore` falso — o cliente concatena aba por aba.
+ *
+ * O `hasMore` existe porque a galeria para no `GALLERY_PAGE_SIZE` de cada aba.
+ * Antes ela parava calada: sessenta itens apareciam e o resto do acervo não
+ * tinha como ser alcançado, nem havia na tela o que dissesse isso.
+ */
 export interface ChatGallery {
   /** Imagens e vídeos. */
   media: Message[];
   /** Os demais anexos. */
   files: Message[];
   links: GalleryLink[];
+  /** Se ainda há mais para trás, aba por aba. */
+  hasMore: Record<GalleryTab, boolean>;
 }
 
 /** Corpo de erro devolvido pelo errorHandler do servidor. */

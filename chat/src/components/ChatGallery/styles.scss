@@ -40,6 +40,45 @@
     display: grid;
     gap: $space-1;
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+
+    /*
+     * No celular o painel de detalhes ocupa a tela toda, e a mesma grade que
+     * dá três colunas em 320px daria cinco em 360px de tela cheia — miniaturas
+     * menores do que o dedo que as aperta.
+     */
+    @media (max-width: 768px) {
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    }
+  }
+
+  /*
+   * A próxima página da aba. Só aparece havendo mais: um botão que não leva a
+   * lugar nenhum é pior do que a ausência dele.
+   */
+  &-more {
+    background: none;
+    border: 1px dashed var(--line, #{$cinza-chat-1});
+    border-radius: $radius-md;
+    color: inherit;
+    cursor: pointer;
+    font-size: 12px;
+    padding: $space-2;
+    width: 100%;
+
+    &:hover:not(:disabled) {
+      border-color: var(--accent, #{$laranja});
+      border-style: solid;
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: var(--focus-offset);
+    }
+
+    &:disabled {
+      cursor: progress;
+      opacity: 0.6;
+    }
   }
 
   &-thumb {

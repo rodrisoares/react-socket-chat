@@ -526,8 +526,19 @@ const routes: Record<string, Partial<Record<Method, Operation>>> = {
     get: {
       tag: 'Conversas',
       summary: 'Galeria: mídia, arquivos e links da conversa',
-      description: 'As três listas numa resposta só — trocar de aba não custa uma ida ao servidor.',
-      responses: { '200': 'A galeria.', ...AUTENTICADA, ...RECUSADA },
+      description:
+        'Sem `tab`, as três listas numa resposta só — trocar de aba não custa uma ida ao servidor. Com `tab` e `cursor`, a próxima página daquela aba; as outras duas voltam vazias. O `hasMore` de cada aba diz se ainda há mais para trás.',
+      query: {
+        tab: '`media`, `files` ou `links`. Sem ela, a primeira página das três.',
+        cursor:
+          'Id da última mensagem já mostrada naquela aba — em `links`, o `messageId` do último link. Exige `tab`.',
+      },
+      responses: {
+        '200': 'A página da galeria.',
+        '400': '`tab` desconhecida, ou `cursor` sem `tab`.',
+        ...AUTENTICADA,
+        ...RECUSADA,
+      },
     },
   },
   '/api/chats/{id}/pinned': {
