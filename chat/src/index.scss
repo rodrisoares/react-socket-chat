@@ -109,6 +109,25 @@ body,
   width: 100%;
 }
 
+/*
+ * Só para leitor de tela.
+ *
+ * `display: none` e `visibility: hidden` tirariam o conteúdo da árvore de
+ * acessibilidade junto — e aí não há o que anunciar. O recorte de 1px é a
+ * forma consagrada de manter o texto vivo e fora da vista.
+ */
+.sr-only {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 /* Foco visível em tudo que recebe teclado — antes não havia nenhum. */
 :focus-visible {
   outline: var(--focus-ring);

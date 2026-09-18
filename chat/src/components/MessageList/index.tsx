@@ -353,6 +353,24 @@ export default function MessageList({
     if (!isLoadingNewer) holdOnGrowth.current = false;
   }, [isLoadingNewer]);
 
+  /**
+   * O texto que a região viva anuncia: a última mensagem, quando ela é de
+   * outra pessoa.
+   *
+   * Aviso de grupo entra também — "Fulano saiu" é exatamente o tipo de coisa
+   * que passa despercebida sem a tela. A mensagem apagada, não: não há o que
+   * ler nela.
+   */
+  const announced = useMemo(() => {
+    const last = messages.at(-1);
+    if (!last || last.userId === currentUserId || last.isDeleted) return '';
+
+    if (last.type === 'SYSTEM') return last.text;
+
+    const body = last.text || (last.attachment ? 'enviou um anexo' : '');
+    return body ? `${last.name}: ${body}` : '';
+  }, [messages, currentUserId]);
+
   const items = virtualizer.getVirtualItems();
 
   return (
@@ -416,6 +434,22 @@ export default function MessageList({
           {isLoadingNewer && <span>Carregando o resto da conversa…</span>}
         </div>
       )}
+
+      {/*
+        O que chega de novo, dito para quem não vê a tela.
+
+        Nada anunciava mensagem nova: quem usa leitor de tela precisava sair da
+        conversa e voltar para descobrir que alguém respondeu. A região fica
+        montada desde sempre, mesmo vazia — um `aria-live` que nasce junto com o
+        conteúdo não é anunciado, porque o leitor precisa já estar observando.
+
+        `polite` porque a conversa é fluxo: interromper a leitura de uma
+        mensagem para anunciar a seguinte atrapalharia mais do que ajuda. E só o
+        que chega dos outros: a sua própria mensagem você acabou de escrever.
+      */}
+      <p className='sr-only' role='status' aria-live='polite'>
+        {announced}
+      </p>
 
       {/*
         Fica colado no fim da área visível enquanto a lista rola por baixo. O

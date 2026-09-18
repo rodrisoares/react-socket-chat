@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { IoClose } from 'react-icons/io5';
 
 import useEscape from 'hooks/escape';
+import useFocusTrap from 'hooks/focusTrap';
 
 interface ModalProps {
   title: string;
@@ -19,13 +20,25 @@ export default function Modal({ title, onClose, children }: ModalProps) {
    */
   useEscape(onClose);
 
+  /*
+   * E o foco fica dentro, e volta ao gatilho no fim.
+   *
+   * O `aria-modal` abaixo dizia que a tela de trás estava inerte, e ela não
+   * estava: o Tab atravessava o diálogo e ia parar nos campos cobertos por ele.
+   */
+  const dialogRef = useFocusTrap<HTMLDivElement>();
+
   return (
     <div className='modal-overlay' onClick={onClose} role='presentation'>
       <div
+        ref={dialogRef}
         className='modal'
         role='dialog'
         aria-modal='true'
         aria-label={title}
+        // Alvo de último recurso: um diálogo sem nada focável ainda precisa
+        // receber o foco, ou ele fica na tela de trás.
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <header className='modal-header'>
