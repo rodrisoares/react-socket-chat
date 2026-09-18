@@ -6,16 +6,17 @@
   "description": "O contrato entre o servidor e o cliente: tipos da API, eventos de socket, limites e schemas Zod",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "default": "./dist/index.js"
     },
     "./schemas": {
-      "types": "./dist/schemas/index.d.ts",
+      "types": "./src/schemas/index.ts",
       "default": "./dist/schemas/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

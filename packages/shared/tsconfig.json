@@ -8,6 +8,10 @@
     // depender de nada que só exista no Node ou só no navegador.
     "types": [],
 
+    // O `dist` é só runtime: os `exports` do package.json apontam os tipos
+    // para o `src`, para o typecheck de quem consome nunca julgar a
+    // compilação anterior. Por isso ele não é versionado — quem o produz é
+    // este build, chamado antes de `dev`, `test`, `typecheck` e `lint`.
     "rootDir": "src",
     "outDir": "dist",
 
