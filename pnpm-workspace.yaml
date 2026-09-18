@@ -3,6 +3,25 @@ packages:
   - chat
   - packages/*
 
+# Uma versão por biblioteca, num lugar só.
+#
+# Os três pacotes declaravam as mesmas ferramentas com números próprios, e eles
+# escorregavam: o cliente ficou com socket.io-client 4.8.0 enquanto o servidor
+# testava contra 4.8.3. Com o catálogo, cada package.json diz `catalog:` e o
+# número mora aqui — subir passa a ser uma linha, e não três.
+#
+# Ficam de fora, de propósito, as que divergem em major: ESLint (9 no cliente,
+# 10 no servidor e no compartilhado), @eslint/js, globals e Vitest (3 e 4).
+# Alinhá-las é atravessar uma major, o que muda configuração e API de teste —
+# outro trabalho, com outro risco. O catálogo deixa isso pronto para o dia em
+# que for feito: acrescentar a entrada aqui e trocar os três números por
+# `catalog:`.
+catalog:
+  '@types/node': ^26.4.0
+  socket.io-client: ^4.8.3
+  typescript: ^5.9.3
+  typescript-eslint: ^8.68.0
+
 # Reunido do que havia em cada app: com um workspace só, a permissão de build
 # de dependência nativa passa a morar aqui.
 allowBuilds:

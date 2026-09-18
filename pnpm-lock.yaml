@@ -4,6 +4,21 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@types/node':
+      specifier: ^26.4.0
+      version: 26.5.1
+    socket.io-client:
+      specifier: ^4.8.3
+      version: 4.8.3
+    typescript:
+      specifier: ^5.9.3
+      version: 5.9.3
+    typescript-eslint:
+      specifier: ^8.68.0
+      version: 8.70.0
+
 importers:
 
   .: {}
@@ -47,7 +62,7 @@ importers:
         specifier: ^6.27.0
         version: 6.30.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       socket.io-client:
-        specifier: ^4.8.0
+        specifier: 'catalog:'
         version: 4.8.3(supports-color@7.2.0)
       zustand:
         specifier: ^5.0.15
@@ -66,7 +81,7 @@ importers:
         specifier: ^14.6.6
         version: 14.6.7(@testing-library/dom@10.4.2)
       '@types/node':
-        specifier: ^26.4.0
+        specifier: 'catalog:'
         version: 26.5.1
       '@types/react':
         specifier: ^18.3.10
@@ -99,10 +114,10 @@ importers:
         specifier: ^1.80.5
         version: 1.104.1
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
       typescript-eslint:
-        specifier: ^8.68.0
+        specifier: 'catalog:'
         version: 8.70.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vite:
         specifier: ^5.4.8
@@ -124,10 +139,10 @@ importers:
         specifier: ^10.9.1
         version: 10.10.0(jiti@2.7.0)(supports-color@7.2.0)
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
       typescript-eslint:
-        specifier: ^8.68.0
+        specifier: 'catalog:'
         version: 8.70.0(eslint@10.10.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
 
   server:
@@ -203,7 +218,7 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0
       '@types/node':
-        specifier: ^26.4.0
+        specifier: 'catalog:'
         version: 26.5.1
       '@types/supertest':
         specifier: ^7.2.1
@@ -218,7 +233,7 @@ importers:
         specifier: 7.10.0
         version: 7.10.0(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(better-sqlite3@12.11.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       socket.io-client:
-        specifier: ^4.8.3
+        specifier: 'catalog:'
         version: 4.8.3(supports-color@7.2.0)
       supertest:
         specifier: ^7.2.2
@@ -227,10 +242,10 @@ importers:
         specifier: ^4.23.13
         version: 4.23.13
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
       typescript-eslint:
-        specifier: ^8.68.0
+        specifier: 'catalog:'
         version: 8.70.0(eslint@10.10.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
       vitest:
         specifier: ^4.1.11
