@@ -23,24 +23,61 @@ import { queryKeys } from 'config/queryKeys';
 
 type ChatsCache = InfiniteData<ChatPage, string | null>;
 
+/**
+ * Passa todas as conversas do cache por uma função, numa escrita só.
+ *
+ * Existe para o que muda muitas conversas de uma vez: presença e perfil valem
+ * para toda conversa em que a pessoa aparece. Isso era feito chamando o
+ * `patchChatInCache` uma vez por conversa — e como cada chamada clona todas as
+ * páginas, o custo era quadrático no tamanho da lista. Com cem conversas, um
+ * contato abrindo o app disparava cem clonagens de cem conversas.
+ *
+ * A função deve devolver a **mesma** conversa quando não há o que mudar: é a
+ * identidade do objeto que diz ao React que aquele card não precisa redesenhar.
+ */
+export function mapChatsInCache(
+  queryClient: QueryClient,
+  change: (chat: Chat) => Chat,
+): void {
+  /*
+   * Todas as listagens de conversa, e não só a principal.
+   *
+   * A listagem filtrada (`chatFilter`) vive sob a mesma chave-raiz justamente
+   * para ser alcançada aqui: sem isto, uma mensagem que chegasse com o filtro
+   * aberto não apareceria no card até alguém limpar a busca.
+   *
+   * O `queryKey` casa por prefixo, então esta atualização também é oferecida a
+   * `['chats', id, 'details']` e companhia — daí a guarda: o que não tem a
+   * forma de uma listagem paginada volta intocado.
+   */
+  queryClient.setQueriesData<ChatsCache>({ queryKey: queryKeys.chats }, (old) => {
+    if (!old || !Array.isArray(old.pages)) return old;
+
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({ ...page, chats: page.chats.map(change) })),
+    };
+  });
+}
+
+/** A conversa que está no cache, ou undefined se ela não foi carregada. */
+export function findChatInCache(
+  queryClient: QueryClient,
+  chatId: string,
+): Chat | undefined {
+  const cache = queryClient.getQueryData<ChatsCache>(queryKeys.chats);
+
+  return cache?.pages.flatMap((page) => page.chats).find((chat) => chat.id === chatId);
+}
+
 /** Muda uma conversa no cache, sem tocar nas outras páginas. */
 export function patchChatInCache(
   queryClient: QueryClient,
   chatId: string,
   patch: Partial<Chat>,
 ): void {
-  queryClient.setQueryData<ChatsCache>(queryKeys.chats, (old) =>
-    old
-      ? {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            chats: page.chats.map((chat) =>
-              chat.id === chatId ? { ...chat, ...patch } : chat,
-            ),
-          })),
-        }
-      : old,
+  mapChatsInCache(queryClient, (chat) =>
+    chat.id === chatId ? { ...chat, ...patch } : chat,
   );
 }
 
@@ -53,17 +90,7 @@ export function patchChatInCache(
  * `image` ausente, e um merge manteria a foto antiga na lista até o próximo F5.
  */
 function replaceChatInCache(queryClient: QueryClient, next: Chat): void {
-  queryClient.setQueryData<ChatsCache>(queryKeys.chats, (old) =>
-    old
-      ? {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            chats: page.chats.map((chat) => (chat.id === next.id ? next : chat)),
-          })),
-        }
-      : old,
-  );
+  mapChatsInCache(queryClient, (chat) => (chat.id === next.id ? next : chat));
 }
 
 /** Tira a conversa da lista — "excluir" é só para quem pediu. */

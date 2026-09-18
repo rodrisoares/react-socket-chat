@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 
 import { queryKeys } from 'config/queryKeys';
-import useChatList, { refreshChat } from './index';
+import useChatList, { mapChatsInCache, refreshChat } from './index';
 
 const get = vi.fn();
 
@@ -178,5 +178,79 @@ describe('refreshChat', () => {
     await refreshChat(client, chatId);
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.chats });
+  });
+});
+
+/**
+ * Uma escrita so no cache, e nao uma por conversa.
+ *
+ * Presenca e perfil valem para toda conversa em que a pessoa aparece, e isso
+ * era feito chamando o `patchChatInCache` uma vez para cada uma. Como cada
+ * chamada clona todas as paginas, o custo era quadratico: com cem conversas,
+ * um contato abrindo o app disparava cem clonagens de cem conversas.
+ */
+describe('mapChatsInCache', () => {
+  function seedPages(client: QueryClient) {
+    client.setQueryData(queryKeys.chats, {
+      pages: [
+        { chats: [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bento' }], nextCursor: 'b' },
+        { chats: [{ id: 'c', name: 'Caio' }], nextCursor: null },
+      ],
+      pageParams: [null, 'b'],
+    });
+  }
+
+  function allChats(client: QueryClient): { id: string; name: string }[] {
+    const data = client.getQueryData<{
+      pages: { chats: { id: string; name: string }[] }[];
+    }>(queryKeys.chats);
+
+    return data?.pages.flatMap((page) => page.chats) ?? [];
+  }
+
+  it('alcanca todas as paginas', () => {
+    const client = new QueryClient();
+    seedPages(client);
+
+    mapChatsInCache(client, (chat) => ({ ...chat, name: chat.name.toUpperCase() }));
+
+    expect(allChats(client).map((chat) => chat.name)).toEqual(['ANA', 'BENTO', 'CAIO']);
+  });
+
+  /**
+   * A identidade do objeto e o que diz ao React que aquele card nao precisa
+   * redesenhar: devolver `chat` sem tocar nele e o caminho barato.
+   */
+  it('mantem a referencia das conversas que a funcao nao mudou', () => {
+    const client = new QueryClient();
+    seedPages(client);
+
+    const antes = allChats(client);
+    mapChatsInCache(client, (chat) =>
+      chat.id === 'b' ? { ...chat, name: 'outro' } : chat,
+    );
+    const depois = allChats(client);
+
+    expect(depois[0]).toBe(antes[0]);
+    expect(depois[2]).toBe(antes[2]);
+    expect(depois[1]).not.toBe(antes[1]);
+  });
+
+  /**
+   * A chave casa por prefixo, entao esta atualizacao tambem e oferecida a
+   * `['chats', id, 'details']` e companhia. O que nao tem forma de listagem
+   * paginada precisa voltar intocado.
+   */
+  it('nao estraga o que esta sob a mesma chave sem ser listagem', () => {
+    const client = new QueryClient();
+    seedPages(client);
+    client.setQueryData(queryKeys.chatDetails('a'), { id: 'a', members: [] });
+
+    mapChatsInCache(client, (chat) => ({ ...chat, name: 'mudou' }));
+
+    expect(client.getQueryData(queryKeys.chatDetails('a'))).toEqual({
+      id: 'a',
+      members: [],
+    });
   });
 });

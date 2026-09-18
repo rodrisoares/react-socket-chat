@@ -1,7 +1,6 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import type {
-  Chat,
   MessageUpdatedEvent,
   NewMessageEvent,
   ReadMessageEvent,
@@ -14,7 +13,12 @@ import fetch from 'config/fetchInstance';
 import { queryKeys } from 'config/queryKeys';
 import { connectSocket, socket } from 'config/socket';
 import { currentChatId, goToChat } from 'utils/chatRoute';
-import { patchChatInCache, refreshChat } from 'hooks/chatList';
+import {
+  findChatInCache,
+  mapChatsInCache,
+  patchChatInCache,
+  refreshChat,
+} from 'hooks/chatList';
 import { appendMessage, replaceMessage } from 'hooks/messageHistory/cache';
 import useNotifications from 'hooks/notifications';
 import useSession from 'hooks/session';
@@ -42,40 +46,46 @@ const TYPING_TTL_MS = 5000;
  */
 const READ_DEBOUNCE_MS = 400;
 
-/** Troca os dados de uma pessoa em todas as conversas em que ela aparece. */
+/**
+ * Troca os dados de uma pessoa em todas as conversas em que ela aparece.
+ *
+ * Uma escrita só no cache, e não uma por conversa: cada escrita clona todas as
+ * páginas, então mudar cem conversas uma a uma custava cem clonagens de cem
+ * conversas. Perfil e presença são justamente o que muda muitas de uma vez.
+ */
 function applyUserToChats(queryClient: QueryClient, updated: User, myId?: number): void {
-  const cache = queryClient.getQueryData<{ pages: { chats: Chat[] }[] }>(queryKeys.chats);
-  if (!cache) return;
+  mapChatsInCache(queryClient, (chat) => {
+    // O próprio usuário fica de fora: numa conversa direta ele também está
+    // em `participants`, e sem esta condição trocar o próprio nome renomearia
+    // as conversas dele para o nome dele mesmo.
+    const isTheirDirect =
+      chat.type === 'DIRECT' &&
+      updated.id !== myId &&
+      chat.participants.includes(updated.id);
 
-  for (const page of cache.pages) {
-    for (const chat of page.chats) {
-      // O próprio usuário fica de fora: numa conversa direta ele também está
-      // em `participants`, e sem esta condição trocar o próprio nome renomearia
-      // as conversas dele para o nome dele mesmo.
-      const isTheirDirect =
-        chat.type === 'DIRECT' &&
-        updated.id !== myId &&
-        chat.participants.includes(updated.id);
+    // A conversa em que esta pessoa não aparece volta como veio: a identidade
+    // do objeto é o que impede o card de redesenhar à toa.
+    if (!isTheirDirect && !chat.members.some((member) => member.id === updated.id)) {
+      return chat;
+    }
 
-      const members = chat.members.map((member) =>
+    return {
+      ...chat,
+      members: chat.members.map((member) =>
         member.id === updated.id
           ? { ...member, ...updated, image: updated.image ?? undefined }
           : member,
-      );
-
-      patchChatInCache(queryClient, chat.id, {
-        members,
-        ...(isTheirDirect
-          ? {
-              name: updated.name,
-              image: updated.image ?? undefined,
-              status: updated.status,
-              lastSeenAt: updated.lastSeenAt ?? null,
-            }
-          : {}),
-      });
-    }
-  }
+      ),
+      ...(isTheirDirect
+        ? {
+            name: updated.name,
+            image: updated.image ?? undefined,
+            status: updated.status,
+            lastSeenAt: updated.lastSeenAt ?? null,
+          }
+        : {}),
+    };
+  });
 }
 
 /** Presença de alguém, na lista e nos membros de cada conversa. */
@@ -85,21 +95,21 @@ function applyPresence(
   isOnline: boolean,
   lastSeenAt: string | null,
 ): void {
-  const cache = queryClient.getQueryData<{ pages: { chats: Chat[] }[] }>(queryKeys.chats);
-  if (!cache) return;
+  mapChatsInCache(queryClient, (chat) => {
+    const isTheirDirect = chat.type === 'DIRECT' && chat.participants.includes(userId);
 
-  for (const page of cache.pages) {
-    for (const chat of page.chats) {
-      const isTheirDirect = chat.type === 'DIRECT' && chat.participants.includes(userId);
-
-      patchChatInCache(queryClient, chat.id, {
-        members: chat.members.map((member) =>
-          member.id === userId ? { ...member, isOnline, lastSeenAt } : member,
-        ),
-        ...(isTheirDirect ? { isLogged: isOnline, lastSeenAt } : {}),
-      });
+    if (!isTheirDirect && !chat.members.some((member) => member.id === userId)) {
+      return chat;
     }
-  }
+
+    return {
+      ...chat,
+      members: chat.members.map((member) =>
+        member.id === userId ? { ...member, isOnline, lastSeenAt } : member,
+      ),
+      ...(isTheirDirect ? { isLogged: isOnline, lastSeenAt } : {}),
+    };
+  });
 }
 
 export default function useSocketEvents(): void {
@@ -189,10 +199,7 @@ export default function useSocketEvents(): void {
 
       appendMessage(queryClient, chatId, newMessage);
 
-      const chats = queryClient.getQueryData<{ pages: { chats: Chat[] }[] }>(queryKeys.chats);
-      const current = chats?.pages
-        .flatMap((page) => page.chats)
-        .find((chat) => chat.id === chatId);
+      const current = findChatInCache(queryClient, chatId);
 
       patchChatInCache(queryClient, chatId, {
         lastMessage: newMessage,
@@ -250,10 +257,7 @@ export default function useSocketEvents(): void {
     function onMessageUpdated({ chatId, message }: MessageUpdatedEvent) {
       replaceMessage(queryClient, chatId, message);
 
-      const chats = queryClient.getQueryData<{ pages: { chats: Chat[] }[] }>(queryKeys.chats);
-      const current = chats?.pages
-        .flatMap((page) => page.chats)
-        .find((chat) => chat.id === chatId);
+      const current = findChatInCache(queryClient, chatId);
 
       // A prévia do card também mostra a mensagem editada ou apagada.
       if (current?.lastMessage?.id === message.id) {
