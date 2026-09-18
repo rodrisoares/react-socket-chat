@@ -1,11 +1,9 @@
 import './styles.scss';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FiLogOut, FiMonitor, FiSmartphone } from 'react-icons/fi';
 
-import fetch from 'config/fetchInstance';
-import { getSessionId } from 'config/auth';
+import useDevices from 'hooks/devices';
 import { lastSeenLabel } from 'utils/lastSeen';
-import type { Session } from '@react-chat/shared';
 
 /**
  * O User-Agent inteiro não cabe e não diz nada: o que a pessoa reconhece é
@@ -38,54 +36,34 @@ function describe(userAgent: string | null): { label: string; isMobile: boolean 
 
 /** Dispositivos com sessão aberta — e o botão para encerrar cada um. */
 export default function SessionList() {
-  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const {
+    sessions,
+    currentId,
+    isFailed,
+    closing,
+    closeDevice,
+    closeOtherDevices,
+  } = useDevices();
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState('');
-  const currentId = getSessionId();
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch
-      .get<Session[]>('/api/me/sessions')
-      .then((response) => {
-        if (!cancelled) setSessions(response.data);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Não foi possível carregar os dispositivos.');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function close(id: string) {
     setError('');
-    setBusy(id);
 
     try {
-      await fetch.delete(`/api/me/sessions/${id}`);
-      setSessions((old) => old?.filter((session) => session.id !== id) ?? null);
+      await closeDevice(id);
     } catch {
       setError('Não foi possível encerrar a sessão.');
-    } finally {
-      setBusy('');
     }
   }
 
   async function closeOthers() {
     if (!currentId) return;
     setError('');
-    setBusy('others');
 
     try {
-      await fetch.delete(`/api/me/sessions?keep=${encodeURIComponent(currentId)}`);
-      setSessions((old) => old?.filter((session) => session.id === currentId) ?? null);
+      await closeOtherDevices();
     } catch {
       setError('Não foi possível encerrar as outras sessões.');
-    } finally {
-      setBusy('');
     }
   }
 
@@ -96,7 +74,10 @@ export default function SessionList() {
       <h3 className='profile-section-title'>Dispositivos conectados</h3>
 
       {error && <p className='session-list-error'>{error}</p>}
-      {!sessions && !error && <p className='session-list-empty'>Carregando…</p>}
+      {isFailed && (
+        <p className='session-list-error'>Não foi possível carregar os dispositivos.</p>
+      )}
+      {!sessions && !isFailed && <p className='session-list-empty'>Carregando…</p>}
 
       {sessions && (
         <ul className='session-list'>
@@ -131,7 +112,7 @@ export default function SessionList() {
                     type='button'
                     className='session-list-close'
                     onClick={() => void close(session.id)}
-                    disabled={busy === session.id}
+                    disabled={closing === session.id}
                     aria-label={`Encerrar sessão em ${label}`}
                     title='Encerrar esta sessão'
                   >
@@ -149,9 +130,9 @@ export default function SessionList() {
           type='button'
           className='session-list-all'
           onClick={() => void closeOthers()}
-          disabled={busy === 'others'}
+          disabled={closing === 'others'}
         >
-          {busy === 'others'
+          {closing === 'others'
             ? 'Encerrando…'
             : `Encerrar as outras ${others.length === 1 ? 'sessão' : `${others.length} sessões`}`}
         </button>

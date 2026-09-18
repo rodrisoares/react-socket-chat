@@ -1,5 +1,5 @@
 import './styles.scss';
-import { lazy, Suspense, useEffect, useId, useState } from 'react';
+import { lazy, Suspense, useId, useState } from 'react';
 import { FiBell, FiBellOff, FiChevronRight, FiEdit2, FiMoon, FiSlash, FiSun } from 'react-icons/fi';
 
 import Avatar from 'components/Avatar';
@@ -8,6 +8,7 @@ import PasswordChecklist from 'components/PasswordChecklist';
 import SessionList from 'components/SessionList';
 import fetch from 'config/fetchInstance';
 import useNotifications from 'hooks/notifications';
+import useBlocks from 'hooks/blocks';
 import useSession from 'hooks/session';
 import useTheme from 'hooks/theme';
 import { STATUS_TEXT_MAX_LENGTH, type User } from '@react-chat/shared';
@@ -65,46 +66,23 @@ export default function Settings() {
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /** Quem eu bloqueei, com nome e foto — o servidor devolve as pessoas. */
-  const [blocked, setBlocked] = useState<User[]>([]);
-
   /**
-   * Uma requisição só, e ela já traz nome e foto.
+   * Quem eu bloqueei, com nome e foto — o servidor devolve as pessoas.
    *
-   * Eram duas: a de bloqueios, que devolvia apenas ids, e a de contatos, de
-   * onde os nomes eram pescados por cruzamento. O atalho só funcionava porque
-   * `/contacts` despejava o banco inteiro — e assim que ela virou busca
-   * paginada, quem estivesse fora da primeira página sumiria desta seção sem
-   * nunca ter sido desbloqueado.
+   * Do mesmo hook que o painel de detalhes usa. Eram duas cópias da lista, uma
+   * em cada tela, e elas divergiam: bloquear alguém dentro da conversa não
+   * aparecia aqui até um F5, e desbloquear aqui deixava o painel oferecendo
+   * "Desbloquear" de novo.
+   *
+   * O desfazer no erro mora no hook, como mutação otimista — antes era um
+   * `setBlocked` de ida e outro de volta, escritos à mão.
    */
-  useEffect(() => {
-    let cancelled = false;
+  const { blocked, setBlocked } = useBlocks();
 
-    void fetch
-      .get<{ blocked: User[] }>('/api/me/blocks')
-      .then((response) => {
-        if (!cancelled) setBlocked(response.data.blocked ?? []);
-      })
-      .catch(() => {
-        // Sem a lista, a seção mostra o vazio: melhor do que um erro no meio
-        // de uma página que funciona inteira fora isso.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  /** Recebe a pessoa inteira, e não o id: é o que permite desfazer. */
   async function unblock(person: User) {
-    setBlocked((old) => old.filter((item) => item.id !== person.id));
-
     try {
-      await fetch.delete(`/api/me/blocks/${person.id}`);
+      await setBlocked(person.id, false);
     } catch {
-      // Recusado: a pessoa volta para a lista, senão a tela mentiria. Volta no
-      // topo porque a ordem do servidor é do bloqueio mais recente.
-      setBlocked((old) => [person, ...old]);
       setError('Não foi possível desbloquear.');
     }
   }

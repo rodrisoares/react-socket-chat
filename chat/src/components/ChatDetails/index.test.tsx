@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 
 import ChatDetails from './index';
 import type { Chat, ChatDetails as Details } from '@react-chat/shared';
@@ -32,6 +34,28 @@ vi.mock('hooks/session', () => ({
 vi.mock('hooks/chatList', () => ({
   default: () => ({ reloadChats: () => reloadChats() as Promise<Chat[]> }),
 }));
+
+// Os detalhes, os bloqueios e os contatos saem do cache do Query, e as
+// consultas so disparam com sessao — ver `hasSession` em config/auth.
+vi.mock('config/auth', () => ({
+  hasSession: () => true,
+  getToken: () => 'token-de-teste',
+}));
+
+/**
+ * O painel vive dentro do cache do Query.
+ *
+ * Um client por render, e nao um compartilhado: senao o resultado de um teste
+ * ficaria no cache para o seguinte — e um "ja esta bloqueado" vazaria para o
+ * teste que espera ninguem bloqueado.
+ */
+function renderPanel(element: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  return render(
+    <QueryClientProvider client={client}>{element}</QueryClientProvider>,
+  );
+}
 
 function makeGroup(): Chat {
   return {
@@ -92,13 +116,17 @@ describe('ChatDetails · perfil do membro', () => {
     // O painel busca duas coisas ao abrir: os detalhes e a lista de bloqueios.
     get.mockImplementation((url: string) =>
       Promise.resolve(
-        url === '/api/me/blocks' ? { data: { blocked: [] } } : { data: details },
+        url === '/api/me/blocks'
+          ? { data: { blocked: [] } }
+          : url.startsWith('/api/me/contacts')
+            ? { data: [] }
+            : { data: details },
       ),
     );
   });
 
   async function openMemberProfile() {
-    render(<ChatDetails chat={makeGroup()} onClose={vi.fn()} onOpenChat={vi.fn()} />);
+    renderPanel(<ChatDetails chat={makeGroup()} onClose={vi.fn()} onOpenChat={vi.fn()} />);
     await screen.findByRole('button', { name: 'Ver detalhes de Marcia' });
     await userEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Marcia' }));
   }
@@ -164,7 +192,9 @@ describe('ChatDetails · perfil do membro', () => {
       Promise.resolve(
         url === '/api/me/blocks'
           ? { data: { blocked: [{ id: 2, name: 'Marcia', isOnline: false }] } }
-          : { data: details },
+          : url.startsWith('/api/me/contacts')
+            ? { data: [] }
+            : { data: details },
       ),
     );
     remove.mockResolvedValue({ data: {} });
@@ -189,7 +219,7 @@ describe('ChatDetails · perfil do membro', () => {
     post.mockResolvedValue({ data: { id: 'direta-nova', type: 'DIRECT' } });
     reloadChats.mockResolvedValue([makeGroup(), criada]);
 
-    render(<ChatDetails chat={makeGroup()} onClose={vi.fn()} onOpenChat={onOpenChat} />);
+    renderPanel(<ChatDetails chat={makeGroup()} onClose={vi.fn()} onOpenChat={onOpenChat} />);
     await screen.findByRole('button', { name: 'Ver detalhes de Marcia' });
     await userEvent.click(screen.getByRole('button', { name: 'Ver detalhes de Marcia' }));
     await userEvent.click(screen.getByRole('button', { name: /Enviar mensagem/ }));
@@ -224,7 +254,13 @@ describe('ChatDetails · bloqueio na conversa direta', () => {
   /** O que o painel busca ao abrir: os detalhes e a lista de bloqueios. */
   function mockBlocks(blocked: number[]) {
     get.mockImplementation((url: string) =>
-      Promise.resolve(url === '/api/me/blocks' ? { data: { blocked } } : { data: direct }),
+      Promise.resolve(
+        url === '/api/me/blocks'
+          ? { data: { blocked } }
+          : url.startsWith('/api/me/contacts')
+            ? { data: [] }
+            : { data: direct },
+      ),
     );
   }
 
@@ -237,7 +273,7 @@ describe('ChatDetails · bloqueio na conversa direta', () => {
     mockBlocks([]);
     post.mockResolvedValue({ data: {} });
 
-    render(<ChatDetails chat={makeDirect('direta-1')} onClose={vi.fn()} onOpenChat={vi.fn()} />);
+    renderPanel(<ChatDetails chat={makeDirect('direta-1')} onClose={vi.fn()} onOpenChat={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole('button', { name: /Bloquear contato/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'Bloquear' }));
@@ -251,7 +287,7 @@ describe('ChatDetails · bloqueio na conversa direta', () => {
     remove.mockResolvedValue({ data: {} });
 
     const blocked = { ...makeDirect('direta-1'), isBlocked: true };
-    render(<ChatDetails chat={blocked} onClose={vi.fn()} onOpenChat={vi.fn()} />);
+    renderPanel(<ChatDetails chat={blocked} onClose={vi.fn()} onOpenChat={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole('button', { name: /Desbloquear contato/ }));
 
@@ -270,7 +306,7 @@ describe('ChatDetails · bloqueio na conversa direta', () => {
     post.mockResolvedValue({ data: {} });
 
     const blocked = { ...makeDirect('direta-1'), isBlocked: true };
-    render(<ChatDetails chat={blocked} onClose={vi.fn()} onOpenChat={vi.fn()} />);
+    renderPanel(<ChatDetails chat={blocked} onClose={vi.fn()} onOpenChat={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole('button', { name: /Desbloquear contato/ }));
 

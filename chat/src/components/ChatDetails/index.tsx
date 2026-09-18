@@ -1,5 +1,5 @@
 import './styles.scss';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { IoClose } from 'react-icons/io5';
 import {
   FiUserPlus,
@@ -26,13 +26,14 @@ import ChatGallery from 'components/ChatGallery';
 import ConfirmDialog from 'components/ConfirmDialog';
 import useEscape from 'hooks/escape';
 import useSession from 'hooks/session';
+import useBlocks from 'hooks/blocks';
+import useChatDetails from 'hooks/chatDetails';
+import useContacts from 'hooks/contacts';
 import useChatList from 'hooks/chatList';
 import {
   GROUP_DESCRIPTION_MAX_LENGTH,
-  type ChatDetails as Details,
   type Chat,
   type Member,
-  type User,
 } from '@react-chat/shared';
 
 /** "No grupo desde": data cheia, sem o "Hoje/Ontem" do separador de mensagens. */
@@ -57,8 +58,18 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   const { user } = useSession();
   const { reloadChats } = useChatList();
   const myId = user?.id;
-  const [details, setDetails] = useState<Details | null>(null);
-  const [contacts, setContacts] = useState<User[]>([]);
+
+  /**
+   * Os detalhes, os contatos e os bloqueios saem do cache do Query.
+   *
+   * Eram três `useEffect` com `useState` e bandeira de cancelamento, e um
+   * `setDetails` repetido depois de cada ação — cinco lugares chamando a mesma
+   * rota à mão. Agora quem muda algo apenas roda a requisição pelo `run`, e o
+   * painel se refaz sozinho.
+   */
+  const { details, isFailed, run, patch } = useChatDetails(chat.id);
+  const failure = isFailed ? 'Não foi possível carregar os detalhes.' : '';
+  const { blockedIds, setBlocked } = useBlocks();
   const [isAdding, setIsAdding] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(chat.name);
@@ -78,8 +89,6 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   const [openMemberId, setOpenMemberId] = useState<number | null>(null);
   const [isOpeningDirect, setIsOpeningDirect] = useState(false);
   const [isPickingImage, setIsPickingImage] = useState(false);
-  /** Quem eu bloqueei. Buscado aqui: é o único lugar que oferece a ação. */
-  const [blockedIds, setBlockedIds] = useState<number[]>([]);
   /**
    * Ação sem volta esperando confirmação; null = nenhuma.
    *
@@ -116,59 +125,29 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   // conversa. Antes ele fechava a conversa inteira, com o painel junto.
   useEscape(() => (openMember ? setOpenMemberId(null) : onClose()));
 
+  // Trocar de conversa volta ao painel do grupo: o membro aberto era de outra.
   useEffect(() => {
-    // Trocar de conversa volta ao painel do grupo: o membro aberto era de outra.
     setOpenMemberId(null);
-
-    let cancelled = false;
-    fetch
-      // A rota devolve as pessoas, e não ids: é o que permite a tela de
-      // bloqueados mostrar nomes sem depender da lista de contatos, que agora
-      // vem paginada. Aqui só os ids interessam — o painel já tem os membros.
-      .get<{ blocked: User[] }>('/api/me/blocks')
-      .then((response) => {
-        // `?? []` porque uma resposta fora do formato não pode derrubar o
-        // painel inteiro — no pior caso o botão de bloquear some.
-        if (!cancelled) setBlockedIds((response.data.blocked ?? []).map((who) => who.id));
-      })
-      .catch(() => {
-        // Sem a lista o botão some; melhor do que oferecer uma ação incerta.
-      });
-
-    fetch
-      .get<Details>(`/api/chats/${chat.id}`)
-      .then((response) => {
-        if (!cancelled) setDetails(response.data);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Não foi possível carregar os detalhes.');
-      });
-    return () => {
-      cancelled = true;
-    };
+    setIsAdding(false);
+    setMemberSearch('');
   }, [chat.id]);
 
   /**
    * Contatos que ainda não estão no grupo, filtrados no servidor.
    *
-   * O `q` não é enfeite: a rota devolve no máximo uma página, e sem termo a
+   * O termo não é enfeite: a rota devolve no máximo uma página, e sem ele a
    * 31ª pessoa da agenda seria inalcançável por este painel.
    */
-  async function loadContacts(term = '') {
-    const response = await fetch.get<User[]>(
-      `/api/me/contacts?q=${encodeURIComponent(term)}`,
-    );
-    const memberIds = new Set(details?.members.map((m) => m.id) ?? []);
-
-    setContacts(response.data.filter((user) => !memberIds.has(user.id)));
-    setIsAdding(true);
-  }
+  const { contacts: found } = useContacts(memberSearch);
+  const contacts = useMemo(() => {
+    const memberIds = new Set(details?.members.map((member) => member.id) ?? []);
+    return found.filter((person) => !memberIds.has(person.id));
+  }, [found, details]);
 
   /** Salva (ou limpa) a descrição do grupo. String vazia remove. */
   async function saveDescription(value: string) {
     try {
-      await fetch.patch(`/api/chats/${chat.id}`, { description: value });
-      await reloadChats();
+      await run(fetch.patch(`/api/chats/${chat.id}`, { description: value }));
       setDraftDescription(null);
     } catch {
       setError('Não foi possível salvar a descrição.');
@@ -178,8 +157,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   /** Liga/desliga o "só administradores enviam". A leitura continua aberta. */
   async function toggleOnlyAdmins(next: boolean) {
     try {
-      await fetch.patch(`/api/chats/${chat.id}`, { onlyAdminsSend: next });
-      await reloadChats();
+      await run(fetch.patch(`/api/chats/${chat.id}`, { onlyAdminsSend: next }));
     } catch {
       setError('Não foi possível mudar quem pode enviar.');
     }
@@ -188,12 +166,11 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   /** Promove ou rebaixa. O servidor recusa rebaixar o último administrador. */
   async function toggleAdmin(member: Member) {
     try {
-      await fetch.put(`/api/chats/${chat.id}/members/${member.id}/admin`, {
-        isAdmin: !member.isAdmin,
-      });
-      await reloadChats();
-      const response = await fetch.get<Details>(`/api/chats/${chat.id}`);
-      setDetails(response.data);
+      await run(
+        fetch.put(`/api/chats/${chat.id}/members/${member.id}/admin`, {
+          isAdmin: !member.isAdmin,
+        }),
+      );
     } catch (err) {
       // Mostra o motivo do servidor: "o grupo ficaria sem nenhum administrador"
       // explica a recusa; um erro genérico deixaria a pessoa tentando de novo.
@@ -215,7 +192,9 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
       const response = await fetch.post<{ inviteUrl: string }>(
         `/api/chats/${chat.id}/invite`,
       );
-      setDetails((old) => (old ? { ...old, inviteUrl: response.data.inviteUrl } : old));
+      // Remenda em vez de rebuscar: a resposta já traz o link, e o resto do
+      // painel não mudou.
+      patch((old) => ({ ...old, inviteUrl: response.data.inviteUrl }));
     } catch {
       setError('Não foi possível gerar o convite.');
     }
@@ -224,7 +203,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   async function revokeInvite() {
     try {
       await fetch.delete(`/api/chats/${chat.id}/invite`);
-      setDetails((old) => (old ? { ...old, inviteUrl: null } : old));
+      patch((old) => ({ ...old, inviteUrl: null }));
     } catch {
       setError('Não foi possível revogar o convite.');
     }
@@ -241,13 +220,20 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
     }
   }
 
+  /*
+   * Nenhuma destas chama `reloadChats`.
+   *
+   * Renomear, adicionar, remover, promover e trocar a foto emitem
+   * `chat-updated` no servidor, e a ponte do socket busca **só** a conversa que
+   * mudou. O `reloadChats` que estava aqui refazia todas as páginas da lista
+   * para dizer o que já estava a caminho — oito vezes neste arquivo.
+   *
+   * O que o socket não cobre é a lista de membros deste painel, e é ela que o
+   * `run` refaz.
+   */
   async function addMember(userId: number) {
     try {
-      await fetch.post(`/api/chats/${chat.id}/members`, { memberIds: [userId] });
-      await reloadChats();
-      const response = await fetch.get<Details>(`/api/chats/${chat.id}`);
-      setDetails(response.data);
-      setContacts((old) => old.filter((c) => c.id !== userId));
+      await run(fetch.post(`/api/chats/${chat.id}/members`, { memberIds: [userId] }));
     } catch {
       setError('Não foi possível adicionar.');
     }
@@ -255,14 +241,9 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
 
   async function removeMember(userId: number) {
     try {
-      await fetch.delete(`/api/chats/${chat.id}/members/${userId}`);
-      await reloadChats();
-      if (userId === myId) {
-        onClose();
-        return;
-      }
-      const response = await fetch.get<Details>(`/api/chats/${chat.id}`);
-      setDetails(response.data);
+      await run(fetch.delete(`/api/chats/${chat.id}/members/${userId}`));
+      // Saiu do grupo: não há mais painel para mostrar.
+      if (userId === myId) onClose();
     } catch {
       setError('Não foi possível remover.');
     }
@@ -270,8 +251,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
 
   async function rename() {
     try {
-      await fetch.patch(`/api/chats/${chat.id}`, { name: newName });
-      await reloadChats();
+      await run(fetch.patch(`/api/chats/${chat.id}`, { name: newName }));
       setIsRenaming(false);
     } catch {
       setError('Não foi possível renomear.');
@@ -328,13 +308,9 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
     setError('');
 
     try {
-      if (shouldBlock) await fetch.post(`/api/me/blocks/${userId}`);
-      else await fetch.delete(`/api/me/blocks/${userId}`);
-
-      setBlockedIds((old) =>
-        shouldBlock ? [...old, userId] : old.filter((id) => id !== userId),
-      );
-      await reloadChats();
+      // O hook cuida do otimismo e de invalidar a lista: bloquear é privado, e
+      // o servidor não emite nada para o outro lado ficar sabendo.
+      await setBlocked(userId, shouldBlock);
     } catch {
       setError('Não foi possível atualizar o bloqueio.');
     }
@@ -343,10 +319,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
   /** Foto do grupo: os mesmos avatares do perfil, escolhidos pelo admin. */
   async function changeImage(image: string) {
     try {
-      await fetch.patch(`/api/chats/${chat.id}`, { image });
-      await reloadChats();
-      const response = await fetch.get<Details>(`/api/chats/${chat.id}`);
-      setDetails(response.data);
+      await run(fetch.patch(`/api/chats/${chat.id}`, { image }));
     } catch {
       setError('Não foi possível trocar a foto.');
     }
@@ -418,7 +391,9 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
         </button>
       </header>
 
-      {error && <p className='chat-details-error'>{error}</p>}
+      {(error || failure) && (
+        <p className='chat-details-error'>{error || failure}</p>
+      )}
 
       {openMember && (
         <>
@@ -465,7 +440,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
               <button
                 type='button'
                 className='chat-details-action'
-                disabled={isOpeningDirect || blockedIds.includes(openMember.id)}
+                disabled={isOpeningDirect || blockedIds.has(openMember.id)}
                 onClick={() => void openDirect(openMember.id)}
               >
                 <FiMessageSquare size={16} />
@@ -478,7 +453,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
                 onClick={() => {
                   // Desbloquear não pede confirmação: ele desfaz, não destrói.
                   // A direção sai da mesma fonte que escreveu o rótulo abaixo.
-                  if (blockedIds.includes(openMember.id)) {
+                  if (blockedIds.has(openMember.id)) {
                     void toggleBlock(openMember.id, false);
                   } else {
                     setPending({ kind: 'block', member: openMember });
@@ -486,7 +461,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
                 }}
               >
                 <FiSlash size={16} />
-                {blockedIds.includes(openMember.id)
+                {blockedIds.has(openMember.id)
                   ? 'Desbloquear contato'
                   : 'Bloquear contato'}
               </button>
@@ -791,10 +766,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
                   placeholder='Buscar contato'
                   aria-label='Buscar contato para adicionar'
                   value={memberSearch}
-                  onChange={(event) => {
-                    setMemberSearch(event.target.value);
-                    void loadContacts(event.target.value);
-                  }}
+                  onChange={(event) => setMemberSearch(event.target.value)}
                 />
                 <ul className='chat-details-members'>
                   {contacts.length === 0 && (
@@ -828,7 +800,7 @@ export default function ChatDetails({ chat, onClose, onOpenChat }: ChatDetailsPr
               <button
                 type='button'
                 className='chat-details-action'
-                onClick={() => void loadContacts()}
+                onClick={() => setIsAdding(true)}
               >
                 <FiUserPlus size={16} /> Adicionar participante
               </button>

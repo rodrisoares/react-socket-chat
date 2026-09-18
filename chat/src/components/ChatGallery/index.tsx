@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { FiPaperclip, FiExternalLink, FiPlay } from 'react-icons/fi';
 
 import Lightbox from 'components/Lightbox';
-import fetch from 'config/fetchInstance';
+import useChatGallery from 'hooks/gallery';
 import { attachmentUrl } from 'config/env';
 import { timeLabel } from 'utils/dayLabel';
-import type { ChatGallery as Gallery, Message } from '@react-chat/shared';
+import type { Message } from '@react-chat/shared';
 
 type Tab = 'media' | 'files' | 'links';
 
@@ -34,30 +34,13 @@ function hostOf(url: string): string {
  */
 export default function ChatGallery({ chatId }: { chatId: string }) {
   const [tab, setTab] = useState<Tab>('media');
-  const [gallery, setGallery] = useState<Gallery | null>(null);
-  const [error, setError] = useState('');
   /** Índice aberto no visor; null = fechado. */
   const [mediaIndex, setMediaIndex] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setGallery(null);
-    setError('');
-    setMediaIndex(null);
+  const { gallery, isFailed } = useChatGallery(chatId);
 
-    fetch
-      .get<Gallery>(`/api/chats/${chatId}/media`)
-      .then((response) => {
-        if (!cancelled) setGallery(response.data);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Não foi possível carregar a galeria.');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chatId]);
+  // Trocar de conversa fecha o visor: o índice era da galeria anterior.
+  useEffect(() => setMediaIndex(null), [chatId]);
 
   const media = gallery?.media ?? [];
   const files = gallery?.files ?? [];
@@ -90,8 +73,10 @@ export default function ChatGallery({ chatId }: { chatId: string }) {
         ))}
       </div>
 
-      {error && <p className='chat-gallery-empty'>{error}</p>}
-      {!gallery && !error && <p className='chat-gallery-empty'>Carregando…</p>}
+      {isFailed && (
+        <p className='chat-gallery-empty'>Não foi possível carregar a galeria.</p>
+      )}
+      {!gallery && !isFailed && <p className='chat-gallery-empty'>Carregando…</p>}
 
       {gallery && tab === 'media' && (
         media.length === 0 ? (

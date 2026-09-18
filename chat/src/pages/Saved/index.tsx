@@ -1,12 +1,11 @@
 import 'components/SavedMessages/styles.scss';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiStar, FiMessageSquare } from 'react-icons/fi';
 
-import fetch from 'config/fetchInstance';
 import useChatList from 'hooks/chatList';
 import useOpenChat from 'hooks/openChat';
-import useSaved from 'hooks/saved';
+import useSaved, { useSavedMessages } from 'hooks/saved';
 import { dayLabel, timeLabel } from 'utils/dayLabel';
 import { attachmentTypeLabel } from 'utils/messagePreview';
 import type { SavedMessage } from '@react-chat/shared';
@@ -22,31 +21,18 @@ export default function Saved() {
   const { chats } = useChatList();
   const { openChatAt } = useOpenChat();
   const { toggleSaved } = useSaved();
+  const { saved: items, isFailed } = useSavedMessages();
   const navigate = useNavigate();
-  const [items, setItems] = useState<SavedMessage[] | null>(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch
-      .get<{ saved: SavedMessage[] }>('/api/me/saved')
-      .then((response) => {
-        if (!cancelled) setItems(response.data.saved);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Não foi possível carregar as mensagens salvas.');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  /** Tira da lista e do servidor. A lista é o único lugar que mostra isto. */
+  /**
+   * Tira do servidor; quem tira da lista é a invalidação que o `toggleSaved`
+   * dispara. Antes eram duas remoções — a otimista aqui e a do cache —, e sair
+   * da página e voltar ressuscitava o item removido, porque esta lista era
+   * estado local e nunca era buscada de novo.
+   */
   function remove(messageId: string) {
     toggleSaved(messageId);
-    setItems((old) => old?.filter((item) => item.message.id !== messageId) ?? null);
   }
 
   /** Abre a conversa já rolando até a mensagem, e sai desta página. */
@@ -74,7 +60,12 @@ export default function Saved() {
       </header>
 
       {error && <p className='saved-messages-error'>{error}</p>}
-      {!items && !error && <p className='saved-messages-empty'>Carregando…</p>}
+      {isFailed && (
+        <p className='saved-messages-error'>
+          Não foi possível carregar as mensagens salvas.
+        </p>
+      )}
+      {!items && !isFailed && <p className='saved-messages-empty'>Carregando…</p>}
 
       {items?.length === 0 && (
         <p className='saved-messages-empty'>Nada salvo ainda.</p>

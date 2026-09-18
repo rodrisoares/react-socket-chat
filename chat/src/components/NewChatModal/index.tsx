@@ -1,9 +1,10 @@
 import './styles.scss';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import Modal from 'components/Modal';
 import Avatar from 'components/Avatar';
 import fetch from 'config/fetchInstance';
+import useContacts from 'hooks/contacts';
 import useChatList from 'hooks/chatList';
 import type { Chat, User } from '@react-chat/shared';
 
@@ -23,7 +24,6 @@ export default function NewChatModal({ onClose, onCreated }: NewChatModalProps) 
   const { reloadChats } = useChatList();
   const [mode, setMode] = useState<Mode>('direct');
   const [search, setSearch] = useState('');
-  const [contacts, setContacts] = useState<User[]>([]);
   /**
    * Os escolhidos por inteiro, e não só os ids.
    *
@@ -47,29 +47,11 @@ export default function NewChatModal({ onClose, onCreated }: NewChatModalProps) 
    * campo de busca tinha: com cem contas eram cem perfis a cada abertura, e a
    * pessoa rolava tudo procurando um nome.
    *
-   * Os 250ms esperam a digitação parar. A rota tem limite de busca — uma ida ao
-   * servidor por tecla gastaria a cota antes de alguém terminar de escrever um
-   * nome, e as respostas ainda poderiam chegar fora de ordem.
+   * A espera pela digitação e o cache moram no hook — este modal e o painel de
+   * detalhes faziam a mesma busca com o mesmo atraso, cada um com a própria
+   * cópia do código e do resultado.
    */
-  useEffect(() => {
-    let cancelled = false;
-
-    const timer = setTimeout(() => {
-      fetch
-        .get<User[]>(`/api/me/contacts?q=${encodeURIComponent(search)}`)
-        .then((response) => {
-          if (!cancelled) setContacts(response.data);
-        })
-        .catch(() => {
-          if (!cancelled) setError('Não foi possível carregar os contatos.');
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [search]);
+  const { contacts, isFailed } = useContacts(search);
 
   function toggle(user: User) {
     // Conversa direta é com uma pessoa: escolher outra troca, não soma.
@@ -216,7 +198,11 @@ export default function NewChatModal({ onClose, onCreated }: NewChatModalProps) 
         ))}
       </ul>
 
-      {error && <p className='new-chat-error'>{error}</p>}
+      {(error || isFailed) && (
+        <p className='new-chat-error'>
+          {error || 'Não foi possível carregar os contatos.'}
+        </p>
+      )}
 
       <button
         type='button'
