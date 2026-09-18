@@ -187,14 +187,25 @@ export async function openDirect(userId: number, otherUserId: number) {
   return { id: chat.id, type: chat.type, isNew: existing === null };
 }
 
-/** Grupo: o criador vira admin. */
-export async function createGroup(userId: number, name: string, memberIds: number[]) {
+/**
+ * Grupo: o criador vira admin.
+ *
+ * A foto e a descrição são opcionais e entram na criação — o grupo nascia só
+ * com nome e participantes, e o resto dependia de alguém abrir o painel de
+ * detalhes depois.
+ */
+export async function createGroup(
+  userId: number,
+  name: string,
+  memberIds: number[],
+  extras: { image?: string; description?: string } = {},
+) {
   const found = await Promise.all(memberIds.map((id) => users.findById(id)));
   if (found.some((user) => !user)) {
     throw AppError.badRequest('Um dos participantes não existe');
   }
 
-  const chat = await chats.createGroup(name, userId, memberIds);
+  const chat = await chats.createGroup(name, userId, memberIds, extras);
   events.joinChat(chat.id, [userId, ...memberIds]);
   events.chatCreated(chat.id);
 

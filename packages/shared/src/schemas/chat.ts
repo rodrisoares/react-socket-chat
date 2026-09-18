@@ -39,11 +39,34 @@ const groupName = z
   .min(NAME_MIN_LENGTH, `O nome do grupo precisa de ao menos ${NAME_MIN_LENGTH} caracteres`)
   .max(GROUP_NAME_MAX_LENGTH);
 
+/** A descricao do grupo — o "assunto", que o painel de detalhes mostra. */
+const groupDescription = z
+  .string()
+  .trim()
+  .max(
+    GROUP_DESCRIPTION_MAX_LENGTH,
+    `A descrição pode ter no máximo ${GROUP_DESCRIPTION_MAX_LENGTH} caracteres`,
+  );
+
+/**
+ * O grupo nasce vestido.
+ *
+ * `image` e `description` passaram a entrar aqui porque o grupo nascia pelado:
+ * so nome e participantes, e a foto e o assunto vinham depois, pelo painel de
+ * detalhes — que muita gente nunca abre. O resultado eram grupos sem cara na
+ * lista, indistinguiveis uns dos outros, e sem nada dizendo do que se tratam.
+ *
+ * Os dois continuam opcionais: quem so quer juntar tres pessoas e conversar
+ * nao deve ser obrigado a preencher formulario.
+ */
 export const createGroupSchema = z.object({
   name: groupName,
   memberIds: z
     .array(z.coerce.number().int().positive())
     .min(1, 'Escolha ao menos um participante'),
+  // Aceita string vazia por tolerancia: e o que um campo nao preenchido manda.
+  image: avatarImageOrEmptySchema.optional(),
+  description: groupDescription.optional(),
 });
 
 /**
@@ -57,14 +80,7 @@ export const updateGroupSchema = z
     // Aceitava qualquer string: nem URL precisava ser. Ver schemas/avatar.ts.
     image: avatarImageOrEmptySchema.optional(),
     // Como a bio: string vazia limpa a descricao.
-    description: z
-      .string()
-      .trim()
-      .max(
-        GROUP_DESCRIPTION_MAX_LENGTH,
-        `A descrição pode ter no máximo ${GROUP_DESCRIPTION_MAX_LENGTH} caracteres`,
-      )
-      .optional(),
+    description: groupDescription.optional(),
     onlyAdminsSend: z.boolean('Valor inválido').optional(),
   })
   .refine(

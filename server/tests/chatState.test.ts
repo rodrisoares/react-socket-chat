@@ -23,6 +23,7 @@ interface ChatBody {
   isMuted: boolean;
   hasLeft: boolean;
   unreadMessages: number;
+  mentionsMe?: boolean;
   lastMessage: { text: string } | null;
   members: { id: number }[];
   readBy: Record<number, string>;
@@ -501,5 +502,59 @@ describe('anexo apagado sai do disco', () => {
       .expect(200);
 
     expect(existsSync(arquivo)).toBe(false);
+  });
+});
+
+/**
+ * O rotulo "mencionou voce" no card.
+ *
+ * O evento do socket marca a mencao ao vivo; este e o outro lado — o que o
+ * servidor calcula ao listar as conversas, e que e o que sobrevive a um F5.
+ * Sem esta metade, o `@todos` notificava na hora e o card ficava mudo depois.
+ */
+describe('mencao no card da lista', () => {
+  beforeEach(resetDb);
+
+  it('marca o card quando a mensagem chama o grupo inteiro', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const marcia = await createUser('Marcia', 'marcia@email.com');
+    const chatId = await createGroup(luiz.id, [marcia.id]);
+
+    await send(chatId, luiz.id, 'gente, @todos confiram').expect(200);
+
+    const daMarcia = (await listChats(marcia.id)).find((chat) => chat.id === chatId);
+    expect(daMarcia?.mentionsMe).toBe(true);
+
+    // E nao para quem escreveu: "voce mencionou voce" nao existe.
+    const doLuiz = (await listChats(luiz.id)).find((chat) => chat.id === chatId);
+    expect(doLuiz?.mentionsMe).toBe(false);
+  });
+
+  /** Aberta a conversa, o chamado deixa de ser pendente e o card volta ao texto. */
+  it('desmarca depois de a conversa ser lida', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const marcia = await createUser('Marcia', 'marcia@email.com');
+    const chatId = await createGroup(luiz.id, [marcia.id]);
+
+    await send(chatId, luiz.id, '@todos olhem').expect(200);
+    await request(app)
+      .post(`/api/chats/${chatId}/readMessages`)
+      .set('Authorization', `Bearer ${tokenFor(marcia.id)}`)
+      .expect(200);
+
+    const daMarcia = (await listChats(marcia.id)).find((chat) => chat.id === chatId);
+    expect(daMarcia?.mentionsMe).toBe(false);
+  });
+
+  /** Em conversa direta o rotulo seria ruido: toda mensagem ali ja e para voce. */
+  it('nao marca em conversa direta', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const marcia = await createUser('Marcia', 'marcia@email.com');
+    const chatId = await createDirectChat(luiz.id, marcia.id);
+
+    await send(chatId, luiz.id, 'oi @todos').expect(200);
+
+    const daMarcia = (await listChats(marcia.id)).find((chat) => chat.id === chatId);
+    expect(daMarcia?.mentionsMe).toBe(false);
   });
 });

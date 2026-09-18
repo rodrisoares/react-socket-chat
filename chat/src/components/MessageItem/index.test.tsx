@@ -51,6 +51,24 @@ describe('MessageItem · menções', () => {
     expect(screen.getByText('@Marcia')).toHaveClass('display-messages-item-mention');
   });
 
+  /**
+   * O chamado geral e destacado como se fosse mais um nome: quem passa a lista
+   * acrescenta "todos" e "all" quando a conversa e grupo, e o tokenizador ja
+   * sabe casar `@` seguido de um nome conhecido.
+   */
+  it('marca o chamado ao grupo inteiro', () => {
+    render(
+      <MessageItem
+        message={makeMessage({ text: 'pessoal, @todos olhem isso' })}
+        currentUserId={1}
+        isRead={false}
+        names={['Marcia', 'todos', 'all']}
+      />,
+    );
+
+    expect(screen.getByText('@todos')).toHaveClass('display-messages-item-mention');
+  });
+
   /** Sem a lista o balao nao adivinha: `@` seguido de palavra fica texto comum. */
   it('nao marca nada sem a lista de nomes', () => {
     render(

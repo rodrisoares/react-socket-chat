@@ -26,8 +26,12 @@ export const openDirect: RequestHandler = async (req, res) => {
 };
 
 export const createGroup: RequestHandler = async (req, res) => {
-  const { name, memberIds } = req.body as CreateGroupInput;
-  const chat = await chatService.createGroup(currentUserId(req), name, memberIds);
+  const { name, memberIds, image, description } = req.body as CreateGroupInput;
+
+  const chat = await chatService.createGroup(currentUserId(req), name, memberIds, {
+    ...(image ? { image } : {}),
+    ...(description ? { description } : {}),
+  });
 
   res.status(201).json(chat);
 };

@@ -87,3 +87,107 @@ describe('DELETE /api/chats/:id/members/:userId — heranca do admin', () => {
     expect(criador?.leftAt).not.toBeNull();
   });
 });
+
+/**
+ * O grupo nasce vestido.
+ *
+ * Ele nascia so com nome e participantes: a foto e o assunto vinham depois,
+ * pelo painel de detalhes — que muita gente nunca abre. Na lista, grupos sem
+ * foto ficam indistinguiveis uns dos outros, e nada diz do que se tratam.
+ */
+describe('POST /api/chats/groups — foto e descricao na criacao', () => {
+  beforeEach(resetDb);
+
+  it('grava a foto e a descricao junto com o grupo', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    const criado = await request(app)
+      .post('/api/chats/groups')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .send({
+        name: 'Time do Deploy',
+        memberIds: [joao.id],
+        image: 'https://api.dicebear.com/9.x/icons/svg?seed=foguete',
+        description: 'Combinados de subida para producao',
+      })
+      .expect(201);
+
+    const grupo = await prisma.chat.findUnique({
+      where: { id: body<{ id: string }>(criado).id },
+    });
+
+    expect(grupo?.image).toBe('https://api.dicebear.com/9.x/icons/svg?seed=foguete');
+    expect(grupo?.description).toBe('Combinados de subida para producao');
+  });
+
+  /** Os dois sao opcionais: juntar tres pessoas nao pode virar formulario. */
+  it('continua criando o grupo so com nome e participantes', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    const criado = await request(app)
+      .post('/api/chats/groups')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .send({ name: 'Time', memberIds: [joao.id] })
+      .expect(201);
+
+    const grupo = await prisma.chat.findUnique({
+      where: { id: body<{ id: string }>(criado).id },
+    });
+
+    expect(grupo?.image).toBeNull();
+    expect(grupo?.description).toBeNull();
+  });
+
+  /** Campo vazio e ausencia, e nao uma foto de caminho vazio. */
+  it('trata string vazia como nao preenchido', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    const criado = await request(app)
+      .post('/api/chats/groups')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .send({ name: 'Time', memberIds: [joao.id], image: '', description: '' })
+      .expect(201);
+
+    const grupo = await prisma.chat.findUnique({
+      where: { id: body<{ id: string }>(criado).id },
+    });
+
+    expect(grupo?.image).toBeNull();
+    expect(grupo?.description).toBeNull();
+  });
+
+  /**
+   * A foto passa pelo mesmo filtro do avatar: so DiceBear ou upload proprio.
+   * Sem isto, a criacao seria a porta de entrada que o PATCH ja fechou — e a
+   * imagem de um grupo aponta para um servidor de terceiros que passa a ver o
+   * IP de todo mundo que abre a conversa.
+   */
+  it('recusa foto de origem que nao e do app', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    await request(app)
+      .post('/api/chats/groups')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .send({
+        name: 'Time',
+        memberIds: [joao.id],
+        image: 'https://exemplo.invalid/rastreador.png',
+      })
+      .expect(400);
+  });
+
+  it('recusa descricao longa demais', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    await request(app)
+      .post('/api/chats/groups')
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .send({ name: 'Time', memberIds: [joao.id], description: 'a'.repeat(400) })
+      .expect(400);
+  });
+});

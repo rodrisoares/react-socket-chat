@@ -1,4 +1,4 @@
-import { CHATS_PAGE_SIZE, mentionsName } from '@react-chat/shared';
+import { CHATS_PAGE_SIZE, mentionsEveryone, mentionsName } from '@react-chat/shared';
 import type { Chat, ChatPage, Message } from '@react-chat/shared';
 
 import { prisma } from '../config/prisma.js';
@@ -462,7 +462,11 @@ export async function listForUser(
         lastMessage !== null &&
         lastMessage.senderId !== userId &&
         myName !== undefined &&
-        mentionsName(lastMessage.text, myName) &&
+        // Pelo nome, ou pelo `@todos` — que chama o grupo inteiro, e portanto
+        // chama voce. Sem esta metade, o chamado geral notificava ao vivo e o
+        // card nao dizia nada depois de um F5.
+        (mentionsName(lastMessage.text, myName) ||
+          mentionsEveryone(lastMessage.text)) &&
         // E so enquanto ela ainda estiver por ler: depois de aberta a conversa,
         // o chamado deixou de ser pendente e o card volta a mostrar o texto.
         (participation.lastReadAt === null ||
@@ -702,14 +706,30 @@ export async function createDirect(userId: number, otherUserId: number) {
   }
 }
 
-/** Cria o grupo com o criador como admin. */
-export function createGroup(name: string, creatorId: number, memberIds: number[]) {
+/**
+ * Cria o grupo com o criador como admin.
+ *
+ * A foto e a descricao entram junto, e nao depois: o grupo nascia so com nome
+ * e participantes, e o resto vinha pelo painel de detalhes — que muita gente
+ * nunca abre. Os dois sao opcionais, entao quem so quer juntar tres pessoas
+ * segue criando o grupo em dois campos.
+ */
+export function createGroup(
+  name: string,
+  creatorId: number,
+  memberIds: number[],
+  extras: { image?: string; description?: string } = {},
+) {
   const unique = [...new Set([creatorId, ...memberIds])];
 
   return prisma.chat.create({
     data: {
       type: 'GROUP',
       name,
+      // String vazia e o que um campo nao preenchido manda: vira ausencia, e
+      // nao uma foto de caminho vazio.
+      ...(extras.image ? { image: extras.image } : {}),
+      ...(extras.description ? { description: extras.description } : {}),
       lastMessageAt: new Date(),
       participants: {
         create: unique.map((userId) => ({

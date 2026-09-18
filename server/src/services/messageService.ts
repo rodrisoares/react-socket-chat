@@ -1,6 +1,7 @@
 import {
   DELETE_FOR_EVERYONE_MINUTES,
   MESSAGES_PAGE_SIZE,
+  mentionsEveryone,
   mentionsName,
 } from '@react-chat/shared';
 import type {
@@ -239,20 +240,34 @@ export interface NewMessage {
  * sobre a mesma mensagem. Quem enviou nunca se menciona.
  */
 async function mentionsIn(
-  chatId: string,
+  chat: { id: string; type: string },
   text: string,
   authorId: number,
 ): Promise<number[]> {
   // O caso comum é não ter arroba nenhuma: nem vale a consulta.
   if (!text.includes('@')) return [];
 
-  const participants = await chats.activeParticipants(chatId);
+  const participants = await chats.activeParticipants(chat.id);
+  const others = participants.filter(
+    (participant) => participant.userId !== authorId,
+  );
 
-  return participants
-    .filter(
-      (participant) =>
-        participant.userId !== authorId && mentionsName(text, participant.user.name),
-    )
+  /*
+   * `@todos` chama o grupo inteiro.
+   *
+   * Só em grupo: numa conversa direta a palavra é texto comum, e a mensagem já
+   * é para a outra pessoa de todo modo. E vale para quem pode escrever, sem
+   * regra nova — num grupo com "só admins enviam", o alcance já fica restrito
+   * por consequência. A alternativa, restringir a administradores, criaria um
+   * silêncio confuso: a pessoa digita, vê o destaque na própria tela e não
+   * entende por que ninguém respondeu.
+   */
+  if (chat.type === 'GROUP' && mentionsEveryone(text)) {
+    return others.map((participant) => participant.userId);
+  }
+
+  return others
+    .filter((participant) => mentionsName(text, participant.user.name))
     .map((participant) => participant.userId);
 }
 
@@ -261,7 +276,7 @@ export async function send(
   userId: number,
   input: NewMessage,
 ): Promise<Message> {
-  await chatService.assertCanWrite(chatId, userId);
+  const { chat } = await chatService.assertCanWrite(chatId, userId);
 
   if (!input.text && !input.attachment) {
     throw AppError.badRequest('Envie um texto ou um anexo');
@@ -294,7 +309,7 @@ export async function send(
   });
 
   const message = chats.serializeMessage(created);
-  events.messageCreated(chatId, userId, message, await mentionsIn(chatId, input.text, userId));
+  events.messageCreated(chatId, userId, message, await mentionsIn(chat, input.text, userId));
 
   return message;
 }

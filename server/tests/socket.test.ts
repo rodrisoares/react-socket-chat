@@ -381,3 +381,110 @@ describe('salas da conversa', () => {
     expect(evento).not.toHaveProperty('email');
   });
 });
+
+/**
+ * `@todos` chama o grupo inteiro.
+ *
+ * O teste vive aqui, e nao entre os de HTTP, porque o que importa e o payload
+ * do `new-message`: e a lista `mentions` dele que fura o silencio de quem
+ * silenciou a conversa. Pelo HTTP so daria para observar o rotulo do card, que
+ * e a consequencia, e nao a causa.
+ */
+describe('mencao ao grupo inteiro', () => {
+  /** Um grupo com tres pessoas, e o socket de uma delas ja na sala. */
+  async function grupoDeTres() {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const marcia = await createUser('Marcia', 'marcia@email.com');
+    const joao = await createUser('Joao', 'joao@email.com');
+
+    const grupo = await prisma.chat.create({
+      data: {
+        type: 'GROUP',
+        name: 'Time',
+        lastMessageAt: new Date(),
+        participants: {
+          create: [{ userId: luiz.id, isAdmin: true }, { userId: marcia.id }, { userId: joao.id }],
+        },
+      },
+    });
+
+    const daMarcia = await connectAs(marcia.id);
+    await roomsReady();
+
+    return { luiz, marcia, joao, chatId: grupo.id, daMarcia };
+  }
+
+  /** Manda pelo HTTP, que e por onde a mensagem entra de verdade. */
+  function send(chatId: string, userId: number, text: string) {
+    return request(app)
+      .post(`/api/chats/${chatId}/messages`)
+      .set('Authorization', `Bearer ${tokenFor(userId)}`)
+      .field('text', text);
+  }
+
+  it('menciona todo mundo, menos quem escreveu', async () => {
+    const { luiz, marcia, joao, chatId, daMarcia } = await grupoDeTres();
+
+    const chegada = waitFor<{ mentions?: number[] }>(daMarcia, 'new-message');
+    await send(chatId, luiz.id, 'pessoal, @todos olhem isso').expect(200);
+
+    const evento = await chegada;
+    expect(evento.mentions).toContain(marcia.id);
+    expect(evento.mentions).toContain(joao.id);
+    expect(evento.mentions).not.toContain(luiz.id);
+  });
+
+  /** Quem vive em ferramenta de trabalho digita `@all` sem pensar. */
+  it('aceita @all tambem', async () => {
+    const { luiz, marcia, chatId, daMarcia } = await grupoDeTres();
+
+    const chegada = waitFor<{ mentions?: number[] }>(daMarcia, 'new-message');
+    await send(chatId, luiz.id, '@all reuniao agora').expect(200);
+
+    expect((await chegada).mentions).toContain(marcia.id);
+  });
+
+  /** Sem arroba nenhuma, ninguem e chamado — e nem ha consulta a fazer. */
+  it('mensagem comum nao menciona ninguem', async () => {
+    const { luiz, chatId, daMarcia } = await grupoDeTres();
+
+    const chegada = waitFor<{ mentions?: number[] }>(daMarcia, 'new-message');
+    await send(chatId, luiz.id, 'bom dia').expect(200);
+
+    expect((await chegada).mentions).toBeUndefined();
+  });
+
+  /** Menção por nome continua valendo, e só chama quem foi chamado. */
+  it('continua chamando so a pessoa quando o nome e citado', async () => {
+    const { luiz, marcia, joao, chatId, daMarcia } = await grupoDeTres();
+
+    const chegada = waitFor<{ mentions?: number[] }>(daMarcia, 'new-message');
+    await send(chatId, luiz.id, '@Marcia consegue ver?').expect(200);
+
+    const evento = await chegada;
+    expect(evento.mentions).toEqual([marcia.id]);
+    expect(evento.mentions).not.toContain(joao.id);
+  });
+
+  /**
+   * Em conversa direta a palavra e texto comum: a mensagem ja e para a outra
+   * pessoa, e chamar "todos" ali nao significa nada.
+   */
+  it('nao vale em conversa direta', async () => {
+    const luiz = await createUser('Luiz', 'luiz@email.com');
+    const marcia = await createUser('Marcia', 'marcia@email.com');
+    const chatId = await createDirectChat(luiz.id, marcia.id);
+
+    const daMarcia = await connectAs(marcia.id);
+    await roomsReady();
+
+    const chegada = waitFor<{ mentions?: number[] }>(daMarcia, 'new-message');
+    await request(app)
+      .post(`/api/chats/${chatId}/messages`)
+      .set('Authorization', `Bearer ${tokenFor(luiz.id)}`)
+      .field('text', 'oi @todos')
+      .expect(200);
+
+    expect((await chegada).mentions).toBeUndefined();
+  });
+});

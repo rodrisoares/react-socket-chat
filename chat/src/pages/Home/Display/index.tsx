@@ -30,7 +30,11 @@ import { useUiStore } from 'store/ui';
 import { clearHistoryMessage, deleteChatMessage } from 'utils/chatActions';
 import { isPreviewable } from 'utils/media';
 import { attachmentTypeLabel } from 'utils/messagePreview';
-import { DELETE_FOR_EVERYONE_MINUTES, type Message } from '@react-chat/shared';
+import {
+  DELETE_FOR_EVERYONE_MINUTES,
+  EVERYONE_MENTIONS,
+  type Message,
+} from '@react-chat/shared';
 
 // Painel lateral so aparece ao pedir detalhes: chunk proprio.
 const ChatDetails = lazy(() => import('components/ChatDetails'));
@@ -575,7 +579,15 @@ export default function Display({ onNewChat }: DisplayProps) {
             nameOf={(userId) => chat.members.find((member) => member.id === userId)?.name}
             // E os nomes de todos, para o balão reconhecer uma menção. Sem a
             // lista, `@` seguido de palavra marcaria um e-mail como menção.
-            names={chat.members.map((member) => member.name)}
+            //
+            // Em grupo, "todos" e "all" entram como se fossem mais dois nomes:
+            // o destaque já sabe casar `@` seguido de um nome conhecido, e o
+            // chamado geral é exatamente isso. Fora do grupo eles ficam de
+            // fora — numa conversa direta a palavra é texto comum.
+            names={[
+              ...chat.members.map((member) => member.name),
+              ...(chat.type === 'GROUP' ? EVERYONE_MENTIONS : []),
+            ]}
             {...(isSearching ? { highlight: search.trim() } : {})}
             focusedId={focus?.id ?? null}
             focusKey={focus?.key ?? 0}
