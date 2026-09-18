@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "pnpm --filter @react-chat/shared build && pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "test": "pnpm --filter @react-chat/shared build && pnpm -r test",
+    "typecheck": "pnpm --filter @react-chat/shared build && pnpm -r typecheck",
+    "lint": "pnpm --filter @react-chat/shared build && pnpm -r lint",
     "db:seed": "pnpm --filter server db:seed",
     "db:reset": "pnpm --filter server db:reset",
     "db:studio": "pnpm --filter server db:studio"
