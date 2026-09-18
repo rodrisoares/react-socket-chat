@@ -12,12 +12,42 @@
   height: 100%;
   // A moldura de 80px desperdicava a tela inteira no desktop.
   padding: 12px;
+  // Ancora do atalho "pular para o conteudo", que e posicionado por cima.
+  position: relative;
   width: 100%;
 
   @media (max-width: 768px) {
     flex-direction: column;
     gap: 8px;
     padding: 8px;
+  }
+}
+
+/*
+ * Atalho do teclado para o conteudo, fora da tela ate receber foco.
+ *
+ * `clip-path` em vez de `display: none`: escondido daquele jeito ele sairia
+ * tambem da ordem de tabulacao, que e justamente onde ele precisa estar.
+ */
+.skip-link {
+  background-color: var(--accent, #{$laranja});
+  border-radius: $radius-md;
+  clip-path: inset(50%);
+  color: $cinza-escuro-texto;
+  font-size: 14px;
+  font-weight: 600;
+  left: $space-4;
+  padding: $space-3 $space-4;
+  position: absolute;
+  text-decoration: none;
+  top: $space-4;
+  // Acima do rail e da faixa de conexao: ele aparece por cima de tudo.
+  z-index: 10;
+
+  &:focus-visible {
+    clip-path: none;
+    outline: 2px solid var(--ink, #{$cinza-claro-texto});
+    outline-offset: 2px;
   }
 }
 
@@ -138,6 +168,25 @@
       padding: 6px 10px;
       width: auto;
     }
+  }
+}
+
+/*
+ * No celular, com a conversa aberta, o rail sai da tela.
+ *
+ * Sao 64px de altura permanentes sobre a area mais disputada do app: eles
+ * valem uma linha e meia de conversa. Voltar para a lista o traz de volta, que
+ * e o mesmo comportamento do WhatsApp — e o caminho para Salvas e Ajustes
+ * continua sendo voltar primeiro.
+ *
+ * `:has()` porque quem sabe que ha conversa aberta e o `.home-container`, la
+ * dentro do `.content`, e o rail e irmao *dele*: nenhum seletor de descendente
+ * vai de um ao outro. Onde o `:has()` nao existir nada muda — o rail fica onde
+ * estava, como antes.
+ */
+@media (max-width: 768px) {
+  .container:has(.home-container.has-open-chat) .navbar {
+    display: none;
   }
 }
 

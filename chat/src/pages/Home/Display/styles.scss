@@ -26,8 +26,13 @@
         line-height: 28px;
         margin: 0;
       }
+      /*
+       * Sem `cursor: pointer` aqui: ele e resto de quando so esta linha de
+       * 12px abria os detalhes. Hoje o alvo e o `-open` inteiro — avatar,
+       * nome e subtitulo —, e o cursor dele ja alcanca este span por heranca.
+       * Mantido, o pointer aparecia tambem onde nao ha clique nenhum.
+       */
       span {
-        cursor: pointer;
         font-size: 12px;
       }
     }

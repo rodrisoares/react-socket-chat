@@ -94,7 +94,19 @@ export default function Layout() {
 
   return (
     <main className='container'>
-      <nav className='navbar'>
+      {/*
+        O primeiro alvo do Tab, e invisível até receber foco.
+
+        Sem ele, quem navega por teclado atravessa os três destinos do rail e o
+        menu do avatar antes de alcançar a lista de conversas — em toda carga de
+        página, e de novo a cada volta para cá. A ordem daqui para a frente é a
+        da própria marcação: rail, depois lista, depois conversa.
+      */}
+      <a className='skip-link' href='#conteudo'>
+        Pular para o conteúdo
+      </a>
+
+      <nav className='navbar' aria-label='Seções do aplicativo'>
         <div className='navbar-top'>
           {/* Marca, nao botao: navegava para "/", a mesma rota do item Chat. */}
           <span className='navbar-logo'>
@@ -166,7 +178,9 @@ export default function Layout() {
           onLogout={() => setIsLeaving(true)}
         />
       </nav>
-      <div className='content'>
+      {/* `tabIndex={-1}` para o salto poder pousar aqui: sem ele o foco fica
+          no `<a>` e a tecla seguinte volta para o começo do rail. */}
+      <div className='content' id='conteudo' tabIndex={-1}>
         {/* O estado da conexão saiu do rail e virou faixa aqui: é o aviso mais
             importante da tela, e estava no lugar mais estreito dela. */}
         <ConnectionBanner />

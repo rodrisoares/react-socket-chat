@@ -212,6 +212,14 @@
           font-weight: 600;
         }
       }
+
+      // Por que o contador do rail nao cobra o que esta aqui — ver a pagina.
+      &-note {
+        font-size: 11.5px;
+        line-height: 1.4;
+        margin: 0;
+        opacity: 0.55;
+      }
     }
     // Nao rola mais: quem rola e a lista virtualizada dentro dele, que precisa
     // ser dona do proprio container para medir o que esta visivel.

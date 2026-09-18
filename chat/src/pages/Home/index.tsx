@@ -135,15 +135,31 @@ export default function Home() {
 
         {isArchivedView ? (
           /* No arquivo as abas não fazem sentido: o que se espera ali é sair. */
-          <button
-            type='button'
-            className='home-chat-archived home-chat-archived--back'
-            onClick={() => setTab('all')}
-          >
-            <FiArrowLeft size={15} />
-            <span className='home-chat-archived-label'>Arquivadas</span>
-            <span className='home-chat-archived-count'>{archived.length}</span>
-          </button>
+          <>
+            <button
+              type='button'
+              className='home-chat-archived home-chat-archived--back'
+              onClick={() => setTab('all')}
+            >
+              <FiArrowLeft size={15} />
+              <span className='home-chat-archived-label'>Arquivadas</span>
+              <span className='home-chat-archived-count'>{archived.length}</span>
+            </button>
+
+            {/*
+              A última discordância entre os dois números da tela.
+
+              O cartão daqui mostra o seu contador de não lidas, e o badge do
+              rail não conta nenhuma delas — arquivar é pedir para não ser
+              chamado, e silenciar também (ver utils/unread). Sem esta linha, um
+              arquivo com três não lidas ao lado de um rail sem badge parece
+              defeito, e era exatamente onde a conta parecia não fechar.
+            */}
+            <p className='home-chat-archived-note'>
+              O que está aqui — e o que está silenciado — não entra no contador
+              do rail.
+            </p>
+          </>
         ) : (
           <>
             <div
